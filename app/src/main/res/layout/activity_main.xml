@@ -9,8 +9,55 @@
     android:paddingTop="@dimen/activity_vertical_margin"
     tools:context="com.beaumont.chrisj.bc_soloapp.MainActivity">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Hello World!" />
+    <RelativeLayout android:id="@+id/frame_takeoff"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="visible">
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_toLeftOf="@+id/space"
+            android:layout_toStartOf="@+id/space">
+
+            <Button
+                android:layout_width="200dp"
+                android:layout_height="200dp"
+                android:text="Connect"
+                android:textSize="30sp"
+                android:background="@drawable/rounded_button_conn"
+                android:layout_centerInParent="true"
+                android:id="@+id/btnTakeOff"
+                android:onClick="onBtnTakeOff"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="@dimen/activity_horizontal_margin"
+                android:textAppearance="?android:attr/textAppearanceLarge"
+                android:text="Step 1:"
+                android:textSize="40sp"
+                android:id="@+id/lblStepCount"
+                android:layout_above="@+id/btnTakeOff"
+                android:layout_alignParentLeft="true"
+                android:layout_alignParentStart="true" />
+
+        </RelativeLayout>
+
+        <FrameLayout
+            android:layout_width="5dp"
+            android:layout_height="match_parent"
+            android:layout_centerInParent="true"
+            android:background="#000"
+            android:id="@+id/space"/>
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_toRightOf="@id/space"
+            android:layout_toEndOf="@+id/space">
+
+        </RelativeLayout>
+
+    </RelativeLayout>
 </RelativeLayout>
