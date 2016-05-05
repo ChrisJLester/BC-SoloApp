@@ -3,6 +3,7 @@ package com.beaumont.chrisj.bc_soloapp;
 import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.text.Layout;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -24,6 +25,7 @@ import com.o3dr.services.android.lib.drone.attribute.error.CommandExecutionError
 import com.o3dr.services.android.lib.drone.connection.ConnectionParameter;
 import com.o3dr.services.android.lib.drone.connection.ConnectionResult;
 import com.o3dr.services.android.lib.drone.connection.ConnectionType;
+import com.o3dr.services.android.lib.drone.property.Altitude;
 import com.o3dr.services.android.lib.drone.property.DroneAttribute;
 import com.o3dr.services.android.lib.drone.property.State;
 import com.o3dr.services.android.lib.drone.property.Type;
@@ -49,6 +51,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     private int MOVEMENT_DEG;
     private float TURN_SPD;
     private int YAW_CHK_DUR;
+    private int LAUNCH_HGHT;
 
     //Stream Variables
     private boolean stream_loaded;
@@ -56,9 +59,14 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     public orientationListener ol;
 
     //UI Components
+    View frame_launch;
+
     Button btnConn, btnArm, btnLaunch;
     ProgressBar spinner_conn, spinner_arm, spinner_launch;
     ImageView tick_conn, tick_arm, tick_launch;
+
+    //Other
+    Boolean launch_procedure;
 
 
     @Override
@@ -121,8 +129,10 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
                 if(droneState.isArmed()){
                     spinner_arm.setVisibility(ProgressBar.INVISIBLE);
                     tick_arm.setVisibility(ImageView.VISIBLE);
-                } else
+                } else{
                     tick_arm.setVisibility(ImageView.INVISIBLE);
+                    tick_launch.setVisibility(ImageView.INVISIBLE);
+                }
                 break;
             case AttributeEvent.TYPE_UPDATED:
                 Type newDroneType = this.drone.getAttribute(AttributeType.TYPE);
@@ -130,11 +140,12 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
                     this.droneType = newDroneType.getDroneType();
                 }
                 break;
+            case AttributeEvent.ATTITUDE_UPDATED:
+                attitude_updated();
             default:
                 break;
         }
     }
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -146,6 +157,9 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         MOVEMENT_DEG = 90;
         TURN_SPD = 0.5f;
         YAW_CHK_DUR = 5000;
+        LAUNCH_HGHT = 15;
+
+        launch_procedure = true;
 
         initUI();
 
@@ -156,70 +170,76 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
 
     //Launch controls actions
     //=========================================================================
-    public void onTakeOffAction(View view) {
+    public void onBtnConn(View view){
+        if(!towerConn)
+            makeToast("Make sure 3DR Services app is running, or restart this app");
+        else{
+            Bundle extraParams = new Bundle();
+            extraParams.putInt(ConnectionType.EXTRA_UDP_SERVER_PORT, 14550); // Set default port to 14550
 
-        switch (view.getId()){
-            case (R.id.btnConn):
-                if(!towerConn)
-                    makeToast("Make sure 3DR Services app is running, or restart this app");
-                else{
-                    Bundle extraParams = new Bundle();
-                    extraParams.putInt(ConnectionType.EXTRA_UDP_SERVER_PORT, 14550); // Set default port to 14550
-
-                    ConnectionParameter connectionParams = new ConnectionParameter(ConnectionType.TYPE_UDP, extraParams, null);
-                    this.drone.connect(connectionParams);
-                    spinner_conn.setVisibility(ProgressBar.VISIBLE);
-                }
-                break;
-
-            case (R.id.btnArm):
-                spinner_arm.setVisibility(ProgressBar.VISIBLE);
-
-                if(this.drone.isConnected())
-                    VehicleApi.getApi(this.drone).arm(true);
-                else {
-                    makeToast("Not connected to the drone!");
-                    spinner_arm.setVisibility(ProgressBar.INVISIBLE);
-                }
-                break;
-
-            case (R.id.btnLaunch):
-                final State droneState = this.drone.getAttribute(AttributeType.STATE);
-                if(droneState.isFlying()){
-                    VehicleApi.getApi(this.drone).setVehicleMode(VehicleMode.COPTER_RTL);
-                } else {
-                    ControlApi.getApi(this.drone).takeoff(15, new AbstractCommandListener() {
-                        @Override
-                        public void onSuccess() {
-                            spinner_launch.setVisibility(ProgressBar.VISIBLE);
-                        }
-
-                        @Override
-                        public void onError(int executionError) {
-                            if(!droneState.isConnected())
-                                makeToast("Not connected to the drone!");
-                            else if(droneState.isConnected() && !droneState.isArmed())
-                                makeToast("Need to arm the drone!");
-                            else
-                                makeToast("Failed to take off - try restarting the app");
-                        }
-
-                        @Override
-                        public void onTimeout() {
-                            makeToast("Failed to takeoff (Timeout)");
-                        }
-                    });
-                }
-                break;
-
-            default:
-                break;
+            ConnectionParameter connectionParams = new ConnectionParameter(ConnectionType.TYPE_UDP, extraParams, null);
+            this.drone.connect(connectionParams);
+            spinner_conn.setVisibility(ProgressBar.VISIBLE);
         }
+    }
+
+    public void onBtnArm(View view){
+        spinner_arm.setVisibility(ProgressBar.VISIBLE);
+
+        if(this.drone.isConnected())
+            VehicleApi.getApi(this.drone).arm(true);
+        else {
+            makeToast("Not connected to the drone!");
+            spinner_arm.setVisibility(ProgressBar.INVISIBLE);
+        }
+    }
+
+    public void onBtnLaunch(View view){
+        final State droneState = this.drone.getAttribute(AttributeType.STATE);
+        if(droneState.isFlying()){
+            VehicleApi.getApi(this.drone).setVehicleMode(VehicleMode.COPTER_RTL);
+        } else {
+            ControlApi.getApi(this.drone).takeoff(LAUNCH_HGHT, new AbstractCommandListener() {
+                @Override
+                public void onSuccess() {
+                    spinner_launch.setVisibility(ProgressBar.VISIBLE);
+                }
+
+                @Override
+                public void onError(int executionError) {
+                    if (!droneState.isConnected())
+                        makeToast("Not connected to the drone!");
+                    else if (droneState.isConnected() && !droneState.isArmed())
+                        makeToast("Need to arm the drone!");
+                    else
+                        makeToast("Failed to take off - try restarting the app");
+                }
+
+                @Override
+                public void onTimeout() {
+                    makeToast("Failed to takeoff (Timeout)");
+                }
+            });
+        }
+    }
+
+    private void attitude_updated(){
+        if(launch_procedure) {
+            Altitude droneAlt = this.drone.getAttribute(AttributeType.ALTITUDE);
+            double alt = droneAlt.getAltitude();
+
+            if ((alt > (LAUNCH_HGHT - 1))) {
+                frame_launch.setVisibility(View.GONE);
+            }
+        }
+
     }
 
     //Other
     //=========================================================================
     private void initUI(){
+        frame_launch = findViewById(R.id.frame_launch);
+
         btnConn = (Button) findViewById(R.id.btnConn);
         btnArm = (Button) findViewById(R.id.btnArm);
         btnLaunch = (Button) findViewById(R.id.btnLaunch);
