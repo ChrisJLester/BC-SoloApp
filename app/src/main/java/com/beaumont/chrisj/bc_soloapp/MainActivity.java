@@ -5,6 +5,9 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
+import android.widget.ProgressBar;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -21,6 +24,7 @@ import com.o3dr.services.android.lib.drone.attribute.error.CommandExecutionError
 import com.o3dr.services.android.lib.drone.connection.ConnectionParameter;
 import com.o3dr.services.android.lib.drone.connection.ConnectionResult;
 import com.o3dr.services.android.lib.drone.connection.ConnectionType;
+import com.o3dr.services.android.lib.drone.property.DroneAttribute;
 import com.o3dr.services.android.lib.drone.property.State;
 import com.o3dr.services.android.lib.drone.property.Type;
 import com.o3dr.services.android.lib.drone.property.VehicleMode;
@@ -52,8 +56,9 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     public orientationListener ol;
 
     //UI Components
-    Button btnTakeOff;
-    TextView lblStepCount;
+    Button btnConn, btnArm, btnLaunch;
+    ProgressBar spinner_conn, spinner_arm, spinner_launch;
+    ImageView tick_conn, tick_arm, tick_launch;
 
 
     @Override
@@ -67,7 +72,6 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         super.onStop();
         if (this.drone.isConnected()) {
             this.drone.disconnect();
-            updateLaunchButton(false);
         }
         this.controlTower.unregisterDrone(this.drone);
         this.controlTower.disconnect();
@@ -97,16 +101,28 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
 
     @Override
     public void onDroneEvent(String event, Bundle extras) {
+        State droneState = this.drone.getAttribute(AttributeType.STATE);
+
         switch (event) {
             case AttributeEvent.STATE_CONNECTED:
-                updateLaunchButton(this.drone.isConnected());
+                spinner_conn.setVisibility(ProgressBar.INVISIBLE);
+                tick_conn.setVisibility(ImageView.VISIBLE);
+                force_Guided_mode();
                 break;
             case AttributeEvent.STATE_DISCONNECTED:
-                updateLaunchButton(this.drone.isConnected());
                 break;
             case AttributeEvent.STATE_UPDATED:
+                if(droneState.isFlying()) {
+                    spinner_launch.setVisibility(ProgressBar.INVISIBLE);
+                    tick_launch.setVisibility(ImageView.VISIBLE);
+                }
+                break;
             case AttributeEvent.STATE_ARMING:
-                updateLaunchButton(true);
+                if(droneState.isArmed()){
+                    spinner_arm.setVisibility(ProgressBar.INVISIBLE);
+                    tick_arm.setVisibility(ImageView.VISIBLE);
+                } else
+                    tick_arm.setVisibility(ImageView.INVISIBLE);
                 break;
             case AttributeEvent.TYPE_UPDATED:
                 Type newDroneType = this.drone.getAttribute(AttributeType.TYPE);
@@ -140,81 +156,81 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
 
     //Launch controls actions
     //=========================================================================
-    public void onBtnTakeOff(View view) {
-        if(this.drone.isConnected()) {
-            State vehicleState = this.drone.getAttribute(AttributeType.STATE);
+    public void onTakeOffAction(View view) {
 
-            if (vehicleState.isFlying()) {
-                // Land
-                VehicleApi.getApi(this.drone).setVehicleMode(VehicleMode.COPTER_RTL);
-            } else if (vehicleState.isArmed()) {
-                // Take off
-                ControlApi.getApi(this.drone).takeoff(15, new AbstractCommandListener() {
-                    @Override
-                    public void onSuccess() {
+        switch (view.getId()){
+            case (R.id.btnConn):
+                if(!towerConn)
+                    makeToast("Make sure 3DR Services app is running, or restart this app");
+                else{
+                    Bundle extraParams = new Bundle();
+                    extraParams.putInt(ConnectionType.EXTRA_UDP_SERVER_PORT, 14550); // Set default port to 14550
 
-                    }
+                    ConnectionParameter connectionParams = new ConnectionParameter(ConnectionType.TYPE_UDP, extraParams, null);
+                    this.drone.connect(connectionParams);
+                    spinner_conn.setVisibility(ProgressBar.VISIBLE);
+                }
+                break;
 
-                    @Override
-                    public void onError(int executionError) {
-                        makeToast("Failed to takeoff (Error)");
-                    }
+            case (R.id.btnArm):
+                spinner_arm.setVisibility(ProgressBar.VISIBLE);
 
-                    @Override
-                    public void onTimeout() {
-                        makeToast("Failed to takeoff (Timeout)");
-                    }
-                });
-            } else if (!vehicleState.isConnected()) {
-                // Connect
-                makeToast("Connect to a drone first");
-            } else if (vehicleState.isConnected() && !vehicleState.isArmed()){
-                // Connected but not Armed
-                VehicleApi.getApi(this.drone).arm(true);
-            }
-        } else {
-            if(!towerConn)
-                makeToast("Make sure 3DR Services app is running, or restart this app");
-            else{
-                Bundle extraParams = new Bundle();
-                extraParams.putInt(ConnectionType.EXTRA_UDP_SERVER_PORT, 14550); // Set default port to 14550
+                if(this.drone.isConnected())
+                    VehicleApi.getApi(this.drone).arm(true);
+                else {
+                    makeToast("Not connected to the drone!");
+                    spinner_arm.setVisibility(ProgressBar.INVISIBLE);
+                }
+                break;
 
-                ConnectionParameter connectionParams = new ConnectionParameter(ConnectionType.TYPE_UDP, extraParams, null);
-                this.drone.connect(connectionParams);
-            }
-        }
-    }
+            case (R.id.btnLaunch):
+                final State droneState = this.drone.getAttribute(AttributeType.STATE);
+                if(droneState.isFlying()){
+                    VehicleApi.getApi(this.drone).setVehicleMode(VehicleMode.COPTER_RTL);
+                } else {
+                    ControlApi.getApi(this.drone).takeoff(15, new AbstractCommandListener() {
+                        @Override
+                        public void onSuccess() {
+                            spinner_launch.setVisibility(ProgressBar.VISIBLE);
+                        }
 
-    private void updateLaunchButton(Boolean conn) {
-        if (conn) {
-            State vehicleState = this.drone.getAttribute(AttributeType.STATE);
+                        @Override
+                        public void onError(int executionError) {
+                            if(!droneState.isConnected())
+                                makeToast("Not connected to the drone!");
+                            else if(droneState.isConnected() && !droneState.isArmed())
+                                makeToast("Need to arm the drone!");
+                            else
+                                makeToast("Failed to take off - try restarting the app");
+                        }
 
-            isFlying = vehicleState.isFlying();
+                        @Override
+                        public void onTimeout() {
+                            makeToast("Failed to takeoff (Timeout)");
+                        }
+                    });
+                }
+                break;
 
-            if (vehicleState.isFlying()) {
-                btnTakeOff.setText("Land");
-                btnTakeOff.setBackgroundResource(R.drawable.rounded_button_takeoff);
-            } else if (vehicleState.isArmed()) {
-                lblStepCount.setText("Step 3:");
-                btnTakeOff.setText("Take Off");
-                btnTakeOff.setBackgroundResource(R.drawable.rounded_button_takeoff);
-            } else if (vehicleState.isConnected()){
-                lblStepCount.setText("Step 2:");
-                btnTakeOff.setText("Arm");
-                btnTakeOff.setBackgroundResource(R.drawable.rounded_button_arm);
-                force_Guided_mode();
-            }
-        } else {
-            btnTakeOff.setText("Connect");
+            default:
+                break;
         }
     }
 
     //Other
     //=========================================================================
     private void initUI(){
-        btnTakeOff = (Button) findViewById(R.id.btnTakeOff);
+        btnConn = (Button) findViewById(R.id.btnConn);
+        btnArm = (Button) findViewById(R.id.btnArm);
+        btnLaunch = (Button) findViewById(R.id.btnLaunch);
 
-        lblStepCount = (TextView) findViewById(R.id.lblStepCount);
+        spinner_conn = (ProgressBar) findViewById(R.id.spinner_conn);
+        spinner_arm = (ProgressBar) findViewById(R.id.spinner_arm);
+        spinner_launch = (ProgressBar) findViewById(R.id.spinner_launch);
+
+        tick_conn = (ImageView) findViewById(R.id.tick_conn);
+        tick_arm = (ImageView) findViewById(R.id.tick_arm);
+        tick_launch = (ImageView) findViewById(R.id.tick_launch);
     }
 
     private void force_Guided_mode(){
