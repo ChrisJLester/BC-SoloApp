@@ -5,8 +5,26 @@
     android:layout_height="match_parent"
     tools:context="com.beaumont.chrisj.bc_soloapp.MainActivity">
 
-    <include
-        android:id="@+id/frame_launch"
-        layout="@layout/activity_launch" />
+    <FrameLayout android:id="@+id/frame_launch"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone">
+
+        <include
+            layout="@layout/layout_launch" />
+
+    </FrameLayout>
+
+    <FrameLayout android:id="@+id/frame_controls"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="visible">
+
+        <include
+            layout="@layout/layout_controls" />
+
+    </FrameLayout>
+
+
 
 </RelativeLayout>

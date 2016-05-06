@@ -1,13 +1,20 @@
 package com.beaumont.chrisj.bc_soloapp;
 
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.text.Layout;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.RelativeLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -59,11 +66,15 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     public orientationListener ol;
 
     //UI Components
-    View frame_launch;
-
+    FrameLayout frame_launch, frame_controls;
+    LinearLayout frame_rot_left, frame_forwards, frame_rot_right, frame_left, frame_right,
+            frame_alt_dec, frame_backwards, frame_alt_inc;
     Button btnConn, btnArm, btnLaunch;
     ProgressBar spinner_conn, spinner_arm, spinner_launch;
-    ImageView tick_conn, tick_arm, tick_launch;
+    ImageView tick_conn, tick_arm, tick_launch, arrow_rot_left, arrow_forwards, arrow_rot_right,
+            arrow_left, arrow_right, arrow_alt_dec, arrow_backwards, arrow_alt_inc;
+    TextView lbl_rot_left, lbl_forwards, lbl_rot_right, lbl_left, lbl_right, lbl_alt_dec,
+            lbl_backwards, lbl_alt_inc;
 
     //Other
     Boolean launch_procedure;
@@ -229,7 +240,8 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
             double alt = droneAlt.getAltitude();
 
             if ((alt > (LAUNCH_HGHT - 1))) {
-                frame_launch.setVisibility(View.GONE);
+                frame_controls.setVisibility(FrameLayout.GONE);
+                frame_launch.setVisibility(FrameLayout.VISIBLE);
             }
         }
 
@@ -238,7 +250,17 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     //Other
     //=========================================================================
     private void initUI(){
-        frame_launch = findViewById(R.id.frame_launch);
+        frame_launch = (FrameLayout) findViewById(R.id.frame_launch);
+        frame_controls = (FrameLayout) findViewById(R.id.frame_controls);
+
+        frame_rot_left = (LinearLayout) findViewById(R.id.frame_rot_left);
+        frame_forwards = (LinearLayout) findViewById(R.id.frame_forward);
+        frame_rot_right = (LinearLayout) findViewById(R.id.frame_rot_right);
+        frame_left = (LinearLayout) findViewById(R.id.frame_left);
+        frame_right = (LinearLayout) findViewById(R.id.frame_right);
+        frame_alt_dec = (LinearLayout) findViewById(R.id.frame_alt_dec);
+        frame_backwards = (LinearLayout) findViewById(R.id.frame_backwards);
+        frame_alt_inc = (LinearLayout) findViewById(R.id.frame_alt_inc);
 
         btnConn = (Button) findViewById(R.id.btnConn);
         btnArm = (Button) findViewById(R.id.btnArm);
@@ -251,6 +273,24 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         tick_conn = (ImageView) findViewById(R.id.tick_conn);
         tick_arm = (ImageView) findViewById(R.id.tick_arm);
         tick_launch = (ImageView) findViewById(R.id.tick_launch);
+
+        arrow_rot_left = (ImageView) findViewById(R.id.arrow_rot_left);
+        arrow_forwards = (ImageView) findViewById(R.id.arrow_forward);
+        arrow_rot_right = (ImageView) findViewById(R.id.arrow_rot_right);
+        arrow_left = (ImageView) findViewById(R.id.arrow_left);
+        arrow_right = (ImageView) findViewById(R.id.arrow_right);
+        arrow_alt_dec = (ImageView) findViewById(R.id.arrow_alt_dec);
+        arrow_backwards = (ImageView) findViewById(R.id.arrow_backwards);
+        arrow_alt_inc = (ImageView) findViewById(R.id.arrow_alt_inc);
+
+        lbl_rot_left = (TextView) findViewById(R.id.lbl_rot_left);
+        lbl_forwards = (TextView) findViewById(R.id.lbl_forward);
+        lbl_rot_right = (TextView) findViewById(R.id.lbl_rot_right);
+        lbl_left = (TextView) findViewById(R.id.lbl_left);
+        lbl_right = (TextView) findViewById(R.id.lbl_right);
+        lbl_alt_dec = (TextView) findViewById(R.id.lbl_alt_dec);
+        lbl_backwards = (TextView) findViewById(R.id.lbl_backwards);
+        lbl_alt_inc = (TextView) findViewById(R.id.lbl_alt_inc);
     }
 
     private void force_Guided_mode(){
@@ -259,6 +299,35 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
 
     private void makeToast(String message) {
         Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public void onBackPressed() {
+        final AlertDialog.Builder alertDialog = new AlertDialog.Builder(this);
+        LayoutInflater inflater = getLayoutInflater();
+        View convertView = (View) inflater.inflate(R.layout.frame_options, null);
+        alertDialog.setView(convertView);
+        alertDialog.setTitle("Options:");
+        alertDialog.setPositiveButton("Continue", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+            }
+        });
+
+        final AlertDialog alert = alertDialog.create();
+        alert.show();
+
+        /*final CheckBox chkDirectional = (CheckBox) alert.findViewById(R.id.chkDirectional);
+        final CheckBox chkRotation = (CheckBox) alert.findViewById(R.id.chkRotation);
+        final CheckBox chkAltitude = (CheckBox) alert.findViewById(R.id.chkAltitude);
+
+        chkDirectional.setOnCheckedChangeListener(this);
+        chkRotation.setOnCheckedChangeListener(this);
+        chkAltitude.setOnCheckedChangeListener(this);
+
+        chkDirectional.setChecked(controls_directional);
+        chkRotation.setChecked(controls_rotation);
+        chkAltitude.setChecked(controls_altitude);*/
     }
 
     public class orientationListener implements GimbalApi.GimbalOrientationListener{
