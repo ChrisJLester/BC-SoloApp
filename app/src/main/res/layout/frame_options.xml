@@ -17,7 +17,8 @@
             android:layout_height="wrap_content"
             android:text="Layout settings"
             android:gravity="center"
-            android:padding="@dimen/activity_vertical_margin"/>
+            android:padding="@dimen/activity_vertical_margin"
+            android:onClick="onTest"/>
 
         <TextView
             android:layout_width="match_parent"

@@ -2,11 +2,14 @@ package com.beaumont.chrisj.bc_soloapp;
 
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import android.graphics.SurfaceTexture;
 import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.text.Layout;
 import android.view.LayoutInflater;
+import android.view.Surface;
+import android.view.TextureView;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -24,6 +27,7 @@ import com.o3dr.android.client.Drone;
 import com.o3dr.android.client.apis.ControlApi;
 import com.o3dr.android.client.apis.GimbalApi;
 import com.o3dr.android.client.apis.VehicleApi;
+import com.o3dr.android.client.apis.solo.SoloCameraApi;
 import com.o3dr.android.client.interfaces.DroneListener;
 import com.o3dr.android.client.interfaces.TowerListener;
 import com.o3dr.services.android.lib.drone.attribute.AttributeEvent;
@@ -38,6 +42,7 @@ import com.o3dr.services.android.lib.drone.property.State;
 import com.o3dr.services.android.lib.drone.property.Type;
 import com.o3dr.services.android.lib.drone.property.VehicleMode;
 import com.o3dr.services.android.lib.model.AbstractCommandListener;
+import com.o3dr.services.android.lib.model.SimpleCommandListener;
 
 public class MainActivity extends AppCompatActivity implements TowerListener, DroneListener {
 
@@ -66,7 +71,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     public orientationListener ol;
 
     //UI Components
-    FrameLayout frame_launch, frame_controls;
+    FrameLayout frame_launch, frame_controls, frame_flight;
     LinearLayout frame_rot_left, frame_forwards, frame_rot_right, frame_left, frame_right,
             frame_alt_dec, frame_backwards, frame_alt_inc;
     Button btnConn, btnArm, btnLaunch;
@@ -75,6 +80,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
             arrow_left, arrow_right, arrow_alt_dec, arrow_backwards, arrow_alt_inc;
     TextView lbl_rot_left, lbl_forwards, lbl_rot_right, lbl_left, lbl_right, lbl_alt_dec,
             lbl_backwards, lbl_alt_inc;
+    TextureView stream_view;
 
     //Other
     Boolean launch_procedure;
@@ -179,7 +185,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     }
 
 
-    //Launch controls actions
+    //Launch controls
     //=========================================================================
     public void onBtnConn(View view){
         if(!towerConn)
@@ -240,18 +246,73 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
             double alt = droneAlt.getAltitude();
 
             if ((alt > (LAUNCH_HGHT - 1))) {
-                frame_controls.setVisibility(FrameLayout.GONE);
-                frame_launch.setVisibility(FrameLayout.VISIBLE);
+                frame_launch.setVisibility(FrameLayout.GONE);
+                frame_flight.setVisibility(FrameLayout.VISIBLE);
             }
         }
 
     }
 
+
+    //Stream controls
+    //=========================================================================
+    public void onBtnStreamLoad(View view){
+        if(stream_loaded){
+            stopVideoStream();
+        } else {
+            if(stream_view.isAvailable()){
+                makeToast("Stream available");
+            } else {
+                makeToast("Stream not available");
+            }
+            startVideoStream(new Surface(stream_view.getSurfaceTexture()));
+        }
+    }
+
+    private void startVideoStream(Surface videoSurface) {
+        SoloCameraApi.getApi(drone).startVideoStream(videoSurface, "", true, new AbstractCommandListener() {
+            @Override
+            public void onSuccess() {
+                stream_loaded = true;
+            }
+
+            @Override
+            public void onError(int executionError) {
+                read_executionError("Cant load stream: ", executionError);
+            }
+
+            @Override
+            public void onTimeout() {
+                makeToast("Timed out while attempting to start the video stream.");
+            }
+        });
+        GimbalApi.getApi(this.drone).startGimbalControl(ol);
+    }
+
+    private void stopVideoStream() {
+        SoloCameraApi.getApi(drone).stopVideoStream(new SimpleCommandListener() {
+            @Override
+            public void onSuccess() {
+                stream_loaded = false;
+            }
+        });
+        GimbalApi.getApi(this.drone).stopGimbalControl(ol);
+    }
+
+
+    //Flight Options
+    //=========================================================================
+    public void onTest(View v){
+        makeToast("Hello");
+    }
+
+
+
     //Other
     //=========================================================================
     private void initUI(){
         frame_launch = (FrameLayout) findViewById(R.id.frame_launch);
-        frame_controls = (FrameLayout) findViewById(R.id.frame_controls);
+        frame_flight = (FrameLayout) findViewById(R.id.frame_flight);
 
         frame_rot_left = (LinearLayout) findViewById(R.id.frame_rot_left);
         frame_forwards = (LinearLayout) findViewById(R.id.frame_forward);
@@ -291,10 +352,49 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         lbl_alt_dec = (TextView) findViewById(R.id.lbl_alt_dec);
         lbl_backwards = (TextView) findViewById(R.id.lbl_backwards);
         lbl_alt_inc = (TextView) findViewById(R.id.lbl_alt_inc);
+
+        stream_view = (TextureView)findViewById(R.id.stream_view);
+        stream_view.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
+            @Override
+            public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+                makeToast("Video display is available.");
+            }
+
+            @Override
+            public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+
+            }
+
+            @Override
+            public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+                return true;
+            }
+
+            @Override
+            public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+
+            }
+        });
+        stream_loaded = false;
+
+        ol = new orientationListener();
     }
 
     private void force_Guided_mode(){
         VehicleApi.getApi(this.drone).setVehicleMode(VehicleMode.COPTER_GUIDED);
+    }
+
+    private void read_executionError(String msg, int error){
+        if (error == CommandExecutionError.COMMAND_DENIED)
+            makeToast(msg + ": Command Denied");
+        else if (error == CommandExecutionError.COMMAND_FAILED)
+            makeToast(msg + ": Command Failed");
+        else if (error == CommandExecutionError.COMMAND_TEMPORARILY_REJECTED)
+            makeToast(msg + ": Command rejected");
+        else if (error == CommandExecutionError.COMMAND_UNSUPPORTED)
+            makeToast(msg + ": unsupported");
+        else
+            makeToast(msg + ": Error didn't match");
     }
 
     private void makeToast(String message) {
