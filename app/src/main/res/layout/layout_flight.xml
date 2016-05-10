@@ -49,6 +49,35 @@
             android:text="Load"
             android:onClick="onBtnStreamLoad"/>
 
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Stop"
+            android:id="@+id/button"
+            android:onClick="onBtnStop"
+            android:layout_centerVertical="true"
+            android:layout_centerHorizontal="true" />
+
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Land"
+            android:id="@+id/button2"
+            android:onClick="onBtnLand"
+            android:layout_centerVertical="true"
+            android:layout_toRightOf="@+id/button"
+            android:layout_toEndOf="@+id/button" />
+
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Guided Mode"
+            android:id="@+id/button3"
+            android:onClick="onBtnForceGuidedMode"
+            android:layout_centerVertical="true"
+            android:layout_toLeftOf="@+id/button"
+            android:layout_toStartOf="@+id/button" />
+
     </RelativeLayout>
 
 </RelativeLayout>

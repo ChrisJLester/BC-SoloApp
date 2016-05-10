@@ -30,6 +30,7 @@ import com.o3dr.android.client.apis.VehicleApi;
 import com.o3dr.android.client.apis.solo.SoloCameraApi;
 import com.o3dr.android.client.interfaces.DroneListener;
 import com.o3dr.android.client.interfaces.TowerListener;
+import com.o3dr.services.android.lib.coordinate.LatLong;
 import com.o3dr.services.android.lib.drone.attribute.AttributeEvent;
 import com.o3dr.services.android.lib.drone.attribute.AttributeType;
 import com.o3dr.services.android.lib.drone.attribute.error.CommandExecutionError;
@@ -37,12 +38,15 @@ import com.o3dr.services.android.lib.drone.connection.ConnectionParameter;
 import com.o3dr.services.android.lib.drone.connection.ConnectionResult;
 import com.o3dr.services.android.lib.drone.connection.ConnectionType;
 import com.o3dr.services.android.lib.drone.property.Altitude;
+import com.o3dr.services.android.lib.drone.property.Attitude;
 import com.o3dr.services.android.lib.drone.property.DroneAttribute;
+import com.o3dr.services.android.lib.drone.property.Gps;
 import com.o3dr.services.android.lib.drone.property.State;
 import com.o3dr.services.android.lib.drone.property.Type;
 import com.o3dr.services.android.lib.drone.property.VehicleMode;
 import com.o3dr.services.android.lib.model.AbstractCommandListener;
 import com.o3dr.services.android.lib.model.SimpleCommandListener;
+import com.o3dr.services.android.lib.util.MathUtils;
 
 public class MainActivity extends AppCompatActivity implements TowerListener, DroneListener {
 
@@ -52,7 +56,6 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     private int droneType = Type.TYPE_UNKNOWN;
     private final Handler handler = new Handler();
     private boolean towerConn;
-    private boolean isFlying;
     private double drone_yaw;
     private double target_yaw;
     private double yaw_before_action;
@@ -71,7 +74,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     public orientationListener ol;
 
     //UI Components
-    FrameLayout frame_launch, frame_controls, frame_flight;
+    FrameLayout frame_launch, frame_flight;
     LinearLayout frame_rot_left, frame_forwards, frame_rot_right, frame_left, frame_right,
             frame_alt_dec, frame_backwards, frame_alt_inc;
     Button btnConn, btnArm, btnLaunch;
@@ -249,8 +252,201 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
                 frame_launch.setVisibility(FrameLayout.GONE);
                 frame_flight.setVisibility(FrameLayout.VISIBLE);
             }
+        } else {
+            Attitude droneAtt = this.drone.getAttribute(AttributeType.ATTITUDE);
+            double yaw = droneAtt.getYaw();
+            drone_yaw = yaw;
         }
 
+    }
+
+
+    //Flight Controls
+    //=========================================================================
+    public void onBtnDroneForward(View view){
+        moveDrone(0.0);
+    }
+
+    public void onBtnDroneBackward(View view){
+        moveDrone(180.0);
+    }
+
+    public void onBtnDroneLeft(View view){
+        moveDrone(270.0);
+    }
+
+    public void onBtnDroneRight(View view){
+        moveDrone(90.0);
+    }
+
+    public void onBtnDroneRotateRight(View view){
+        yaw_before_action = drone_yaw;
+
+        //Drone yaw goes from 0 to 180 and then -179 back to 0. This converts it to 0-360
+        double current_yaw = (drone_yaw < 0 ? (180 + (180 - (-drone_yaw))) : drone_yaw);
+
+        target_yaw = current_yaw + MOVEMENT_DEG;
+        target_yaw = (target_yaw >= 360 ? (target_yaw - 360) : target_yaw);
+
+        ControlApi.getApi(this.drone).turnTo((float) target_yaw, TURN_SPD, false, new AbstractCommandListener() {
+            @Override
+            public void onSuccess() {
+            }
+
+            @Override
+            public void onError(int executionError) {
+                read_executionError("Failed to rotate", executionError);
+            }
+
+            @Override
+            public void onTimeout() {
+                makeToast("Failed to rotate (timeout)");
+            }
+
+        });
+    }
+
+    public void onBtnDroneRotateLeft(View view){
+        yaw_before_action = drone_yaw;
+
+        //Drone yaw goes from 0 to 180 and then -179 back to 0. This converts it to 0-360
+        double current_yaw = (drone_yaw < 0 ? (180 + (180 - (-drone_yaw))) : drone_yaw);
+
+        target_yaw = current_yaw - MOVEMENT_DEG;
+        target_yaw = (target_yaw < 0 ? (target_yaw + 360) : target_yaw);
+
+        ControlApi.getApi(this.drone).turnTo((float) target_yaw, -TURN_SPD, false, new AbstractCommandListener() {
+                @Override
+                public void onSuccess() {}
+
+                @Override
+                public void onError(int executionError) {
+                    read_executionError("Failed to rotate", executionError);
+                }
+
+                @Override
+                public void onTimeout() {
+                    makeToast("Failed to rotate (timeout)");
+                }
+
+            });
+    }
+
+    public void onBtnDroneIncreaseAlt(View view){
+        yaw_before_action = drone_yaw;
+
+        Altitude alt = this.drone.getAttribute(AttributeType.ALTITUDE);
+        ControlApi.getApi(this.drone).climbTo(alt.getAltitude() + MOVEMENT_ALT);
+        check_yaw();
+    }
+
+    public void onBtnDroneDecreaseAlt(View view){
+        yaw_before_action = drone_yaw;
+
+        Altitude alt = this.drone.getAttribute(AttributeType.ALTITUDE);
+        double target_alt = alt.getAltitude() - MOVEMENT_ALT;
+
+        if (target_alt <= 0)
+            makeToast("This will put the drone below the ground! Try landing");
+        else {
+            ControlApi.getApi(this.drone).climbTo(alt.getAltitude() - MOVEMENT_ALT);
+            check_yaw();
+        }
+    }
+
+    public void onBtnForceGuidedMode(View view){
+        force_Guided_mode();
+    }
+
+    public void onBtnStop(View view){
+        ControlApi.getApi(this.drone).pauseAtCurrentLocation(new AbstractCommandListener() {
+            @Override
+            public void onSuccess() {
+
+            }
+
+            @Override
+            public void onError(int executionError) {
+                read_executionError("Failed to pause", executionError);
+            }
+
+            @Override
+            public void onTimeout() {
+                makeToast("Failed to pause (Timeout)");
+            }
+        });
+    }
+
+    public void onBtnLand(View view){
+        State vehicleState = this.drone.getAttribute(AttributeType.STATE);
+
+        if (vehicleState.isFlying()) {
+            // Land
+            VehicleApi.getApi(this.drone).setVehicleMode(VehicleMode.COPTER_RTL);
+        }
+    }
+
+    private void check_yaw(){
+        Handler handler = new Handler();
+        handler.postDelayed(new Runnable() {
+            public void run() {
+                if (yaw_before_action != drone_yaw)
+                    rotate();
+            }
+        }, YAW_CHK_DUR);
+    }
+
+    private void rotate(){
+        ControlApi.getApi(this.drone).turnTo((float) yaw_before_action, TURN_SPD, false, new AbstractCommandListener() {
+            @Override
+            public void onSuccess() {
+            }
+
+            @Override
+            public void onError(int executionError) {
+                read_executionError("Failed to rotate", executionError);
+            }
+
+            @Override
+            public void onTimeout() {
+                makeToast("Failed to rotate (timeout)");
+            }
+        });
+    }
+
+    private void moveDrone(double bearing){
+        yaw_before_action = drone_yaw;
+
+        double target_bearing = bearing + drone_yaw;
+        if (target_bearing >= 360)
+            target_bearing = target_bearing - 360;
+
+        LatLong current;
+        try {
+            Gps gps = this.drone.getAttribute(AttributeType.GPS);
+            current = new LatLong(gps.getPosition().getLatitude(), gps.getPosition().getLongitude());
+        } catch (Exception e) {
+            current = new LatLong(54.068164, -2.801859);
+        }
+
+        LatLong target = MathUtils.newCoordFromBearingAndDistance(current, target_bearing, MOVEMENT_YAW);
+
+        ControlApi.getApi(this.drone).goTo(target, true, new AbstractCommandListener() {
+            @Override
+            public void onSuccess() {
+                check_yaw();
+            }
+
+            @Override
+            public void onError(int executionError) {
+                makeToast("Couldn't move (Error)");
+            }
+
+            @Override
+            public void onTimeout() {
+                makeToast("Couldn't move (Timeout)");
+            }
+        });
     }
 
 
