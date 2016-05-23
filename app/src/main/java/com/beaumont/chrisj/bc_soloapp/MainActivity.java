@@ -6,16 +6,16 @@ import android.graphics.SurfaceTexture;
 import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.text.Layout;
 import android.view.LayoutInflater;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
+import android.widget.AdapterView;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.NumberPicker;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.Spinner;
@@ -25,6 +25,7 @@ import android.widget.Toast;
 import com.o3dr.android.client.ControlTower;
 import com.o3dr.android.client.Drone;
 import com.o3dr.android.client.apis.ControlApi;
+import com.o3dr.android.client.apis.FollowApi;
 import com.o3dr.android.client.apis.GimbalApi;
 import com.o3dr.android.client.apis.VehicleApi;
 import com.o3dr.android.client.apis.solo.SoloCameraApi;
@@ -39,14 +40,24 @@ import com.o3dr.services.android.lib.drone.connection.ConnectionResult;
 import com.o3dr.services.android.lib.drone.connection.ConnectionType;
 import com.o3dr.services.android.lib.drone.property.Altitude;
 import com.o3dr.services.android.lib.drone.property.Attitude;
-import com.o3dr.services.android.lib.drone.property.DroneAttribute;
 import com.o3dr.services.android.lib.drone.property.Gps;
 import com.o3dr.services.android.lib.drone.property.State;
 import com.o3dr.services.android.lib.drone.property.Type;
 import com.o3dr.services.android.lib.drone.property.VehicleMode;
+import com.o3dr.services.android.lib.gcs.follow.FollowState;
+import com.o3dr.services.android.lib.gcs.follow.FollowType;
 import com.o3dr.services.android.lib.model.AbstractCommandListener;
 import com.o3dr.services.android.lib.model.SimpleCommandListener;
 import com.o3dr.services.android.lib.util.MathUtils;
+
+import org.osmdroid.api.IMapController;
+import org.osmdroid.bonuspack.overlays.MapEventsOverlay;
+import org.osmdroid.tileprovider.tilesource.XYTileSource;
+import org.osmdroid.util.GeoPoint;
+import org.osmdroid.views.MapView;
+import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
+
+import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity implements TowerListener, DroneListener {
 
@@ -78,8 +89,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     LinearLayout frame_rot_left, frame_forwards, frame_rot_right, frame_left, frame_right,
             frame_alt_dec, frame_backwards, frame_alt_inc;
     Button btnConn, btnArm, btnLaunch;
-    ProgressBar spinner_conn, spinner_arm, spinner_launch;
-    ImageView tick_conn, tick_arm, tick_launch, arrow_rot_left, arrow_forwards, arrow_rot_right,
+    ImageView arrow_rot_left, arrow_forwards, arrow_rot_right,
             arrow_left, arrow_right, arrow_alt_dec, arrow_backwards, arrow_alt_inc;
     TextView lbl_rot_left, lbl_forwards, lbl_rot_right, lbl_left, lbl_right, lbl_alt_dec,
             lbl_backwards, lbl_alt_inc;
@@ -87,6 +97,12 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
 
     //Other
     Boolean launch_procedure;
+    Boolean landing;
+
+
+    //Maps
+    MapView map;
+    IMapController mapController;
 
 
     @Override
@@ -124,7 +140,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
 
     @Override
     public void onDroneServiceInterrupted(String s){
-        makeToast("Drone service interrupted");
+        makeToast("Drone service interrupted: Make sure device is connected to Drone's WiFi");
     }
 
     @Override
@@ -133,26 +149,27 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
 
         switch (event) {
             case AttributeEvent.STATE_CONNECTED:
-                spinner_conn.setVisibility(ProgressBar.INVISIBLE);
-                tick_conn.setVisibility(ImageView.VISIBLE);
-                force_Guided_mode();
+                if (droneState.isFlying()) {
+                    frame_launch.setVisibility(RelativeLayout.GONE);
+                    frame_flight.setVisibility(RelativeLayout.VISIBLE);
+                    launch_procedure = false;
+                } else
+                    btnArm.setVisibility(Button.VISIBLE);
                 break;
             case AttributeEvent.STATE_DISCONNECTED:
-                break;
-            case AttributeEvent.STATE_UPDATED:
-                if(droneState.isFlying()) {
-                    spinner_launch.setVisibility(ProgressBar.INVISIBLE);
-                    tick_launch.setVisibility(ImageView.VISIBLE);
+                if(launch_procedure){
+                    btnArm.setVisibility(Button.INVISIBLE);
+                    btnLaunch.setVisibility(Button.INVISIBLE);
+                } else {
+                    frame_flight.setVisibility(RelativeLayout.INVISIBLE);
+                    frame_launch.setVisibility(RelativeLayout.VISIBLE);
                 }
                 break;
             case AttributeEvent.STATE_ARMING:
-                if(droneState.isArmed()){
-                    spinner_arm.setVisibility(ProgressBar.INVISIBLE);
-                    tick_arm.setVisibility(ImageView.VISIBLE);
-                } else{
-                    tick_arm.setVisibility(ImageView.INVISIBLE);
-                    tick_launch.setVisibility(ImageView.INVISIBLE);
-                }
+                if(this.drone.isConnected() && droneState.isArmed())
+                    btnLaunch.setVisibility(Button.VISIBLE);
+                else
+                    btnLaunch.setVisibility(Button.INVISIBLE);
                 break;
             case AttributeEvent.TYPE_UPDATED:
                 Type newDroneType = this.drone.getAttribute(AttributeType.TYPE);
@@ -180,8 +197,12 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         LAUNCH_HGHT = 15;
 
         launch_procedure = true;
+        landing = false;
 
         initUI();
+
+        map = (MapView) findViewById(R.id.map);
+        setupMap();
 
         this.controlTower = new ControlTower(getApplicationContext());
         this.drone = new Drone(getApplicationContext());
@@ -197,53 +218,45 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
             Bundle extraParams = new Bundle();
             extraParams.putInt(ConnectionType.EXTRA_UDP_SERVER_PORT, 14550); // Set default port to 14550
 
-            ConnectionParameter connectionParams = new ConnectionParameter(ConnectionType.TYPE_UDP, extraParams, null);
+            ConnectionParameter connectionParams = new ConnectionParameter(ConnectionType.TYPE_UDP, extraParams);
             this.drone.connect(connectionParams);
-            spinner_conn.setVisibility(ProgressBar.VISIBLE);
         }
     }
 
     public void onBtnArm(View view){
-        spinner_arm.setVisibility(ProgressBar.VISIBLE);
-
-        if(this.drone.isConnected())
+        State vehicleState = this.drone.getAttribute(AttributeType.STATE);
+        if (vehicleState.isConnected() && !vehicleState.isArmed()){
             VehicleApi.getApi(this.drone).arm(true);
-        else {
-            makeToast("Not connected to the drone!");
-            spinner_arm.setVisibility(ProgressBar.INVISIBLE);
-        }
+        } else if (vehicleState.isArmed())
+            makeToast("Already Armed!");
     }
 
     public void onBtnLaunch(View view){
-        final State droneState = this.drone.getAttribute(AttributeType.STATE);
-        if(droneState.isFlying()){
-            VehicleApi.getApi(this.drone).setVehicleMode(VehicleMode.COPTER_RTL);
-        } else {
+        State vehicleState = this.drone.getAttribute(AttributeType.STATE);
+        if(vehicleState.isConnected() && vehicleState.isArmed() && !vehicleState.isFlying()){
             ControlApi.getApi(this.drone).takeoff(LAUNCH_HGHT, new AbstractCommandListener() {
                 @Override
                 public void onSuccess() {
-                    spinner_launch.setVisibility(ProgressBar.VISIBLE);
+
                 }
 
                 @Override
                 public void onError(int executionError) {
-                    if (!droneState.isConnected())
-                        makeToast("Not connected to the drone!");
-                    else if (droneState.isConnected() && !droneState.isArmed())
-                        makeToast("Need to arm the drone!");
-                    else
-                        makeToast("Failed to take off - try restarting the app");
+                    makeToast("Failed");
                 }
 
                 @Override
                 public void onTimeout() {
-                    makeToast("Failed to takeoff (Timeout)");
+                    makeToast("Timeout");
                 }
             });
         }
     }
 
     private void attitude_updated(){
+        Attitude droneAtt = this.drone.getAttribute(AttributeType.ATTITUDE);
+        drone_yaw = droneAtt.getYaw();
+
         if(launch_procedure) {
             Altitude droneAlt = this.drone.getAttribute(AttributeType.ALTITUDE);
             double alt = droneAlt.getAltitude();
@@ -251,13 +264,9 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
             if ((alt > (LAUNCH_HGHT - 1))) {
                 frame_launch.setVisibility(FrameLayout.GONE);
                 frame_flight.setVisibility(FrameLayout.VISIBLE);
+                launch_procedure = false;
             }
-        } else {
-            Attitude droneAtt = this.drone.getAttribute(AttributeType.ATTITUDE);
-            double yaw = droneAtt.getYaw();
-            drone_yaw = yaw;
         }
-
     }
 
 
@@ -316,20 +325,21 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         target_yaw = (target_yaw < 0 ? (target_yaw + 360) : target_yaw);
 
         ControlApi.getApi(this.drone).turnTo((float) target_yaw, -TURN_SPD, false, new AbstractCommandListener() {
-                @Override
-                public void onSuccess() {}
+            @Override
+            public void onSuccess() {
+            }
 
-                @Override
-                public void onError(int executionError) {
-                    read_executionError("Failed to rotate", executionError);
-                }
+            @Override
+            public void onError(int executionError) {
+                read_executionError("Failed to rotate", executionError);
+            }
 
-                @Override
-                public void onTimeout() {
-                    makeToast("Failed to rotate (timeout)");
-                }
+            @Override
+            public void onTimeout() {
+                makeToast("Failed to rotate (timeout)");
+            }
 
-            });
+        });
     }
 
     public void onBtnDroneIncreaseAlt(View view){
@@ -383,6 +393,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         if (vehicleState.isFlying()) {
             // Land
             VehicleApi.getApi(this.drone).setVehicleMode(VehicleMode.COPTER_RTL);
+            landing = true;
         }
     }
 
@@ -502,6 +513,113 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         makeToast("Hello");
     }
 
+    public void onBtnCircleMe(View v){
+        FollowState followState = this.drone.getAttribute(AttributeType.FOLLOW_STATE);
+
+        if(followState.isEnabled()) {
+            FollowApi.getApi(this.drone).disableFollowMe();
+        } else {
+            FollowApi.getApi(this.drone).enableFollowMe(FollowType.CIRCLE);
+            Bundle params = new Bundle();
+            params.putDouble(FollowType.EXTRA_FOLLOW_RADIUS, 5);
+            FollowApi.getApi(this.drone).updateFollowParams(params);
+        }
+    }
+
+    public void onBtnFollow(View v){
+        FollowState followState = this.drone.getAttribute(AttributeType.FOLLOW_STATE);
+
+        if(followState.isEnabled()) {
+            FollowApi.getApi(this.drone).disableFollowMe();
+        } else {
+            FollowApi.getApi(this.drone).enableFollowMe(FollowType.ABOVE);
+        }
+
+    }
+
+    public void onBtnLookAtMe(View v){
+        FollowState followState = this.drone.getAttribute(AttributeType.FOLLOW_STATE);
+
+        if(followState.isEnabled()) {
+            FollowApi.getApi(this.drone).disableFollowMe();
+        } else {
+            FollowApi.getApi(this.drone).enableFollowMe(FollowType.LOOK_AT_ME);
+        }
+    }
+
+
+    //Maps
+    //=========================================================================
+    public void onBtnMap(View v){
+        FrameLayout frame_controls = (FrameLayout) findViewById(R.id.frame_controls);
+        FrameLayout frame_maps = (FrameLayout) findViewById(R.id.frame_maps);
+
+        if(frame_controls.getVisibility() == FrameLayout.VISIBLE){
+            frame_controls.setVisibility(FrameLayout.INVISIBLE);
+            frame_maps.setVisibility(FrameLayout.VISIBLE);
+        } else {
+            frame_controls.setVisibility(FrameLayout.VISIBLE);
+            frame_maps.setVisibility(FrameLayout.INVISIBLE);
+        }
+    }
+
+    private void setupMap(){
+        final float scale = getBaseContext().getResources().getDisplayMetrics().density;
+        final int newScale = (int) (512 * scale);  //256
+        String[] OSMSource = new String[2];
+        OSMSource[0] = "http://a.tile.openstreetmap.org/";
+        OSMSource[1] = "http://b.tile.openstreetmap.org/";
+        XYTileSource MapSource = new XYTileSource("OSM", 1, 18, newScale, ".png", OSMSource);
+
+        mapController = map.getController();
+        mapController.setZoom(17);
+        GeoPoint startPoint = new GeoPoint(54.068154, -2.801643);
+        mapController.setCenter(startPoint);
+
+        /*location_overlay = new MyLocationNewOverlay(getApplicationContext(), map);
+        location_overlay.enableMyLocation();
+        location_overlay.enableFollowLocation();
+        location_overlay.setDrawAccuracyEnabled(true);
+        MapEventsOverlay mapEventsOverlay = new MapEventsOverlay(this, this);
+
+        DroneMarker droneMarker = new DroneMarker(map);
+        //Gps droneGPS = this.drone.getAttribute(AttributeType.GPS);
+        //GeoPoint dronePosition = new GeoPoint(droneGPS.getPosition().getLatitude(), droneGPS.getPosition().getLatitude());
+        droneMarker.setPosition(startPoint);
+        droneMarker.setTitle("Drone");*/
+
+        map.setTileSource(MapSource);
+        map.setMultiTouchControls(true);
+        map.setMinZoomLevel(2);
+        /*map.getOverlays().add(0, mapEventsOverlay);
+        map.getOverlays().add(1, location_overlay);
+        map.getOverlays().add(2, droneMarker);*/
+        map.invalidate();
+
+        /*Spinner s_onFinish = (Spinner)findViewById(R.id.spinner_Waypoints);
+        final TextView lblRepeatCount = (TextView)findViewById(R.id.lblRepeatCount);
+        final NumberPicker np_RepeatCount = (NumberPicker)findViewById(R.id.waypoint_numberpicker_repeat_count);
+        np_RepeatCount.setMinValue(1);
+        np_RepeatCount.setMaxValue(30);
+        np_RepeatCount.setValue(2);
+        s_onFinish.setSelection(3);
+        s_onFinish.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (position == 0) {
+                    lblRepeatCount.setVisibility(TextView.VISIBLE);
+                    np_RepeatCount.setVisibility(NumberPicker.VISIBLE);
+                } else {
+                    lblRepeatCount.setVisibility(TextView.GONE);
+                    np_RepeatCount.setVisibility(NumberPicker.GONE);
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });*/
+    }
 
 
     //Other
@@ -522,14 +640,6 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         btnConn = (Button) findViewById(R.id.btnConn);
         btnArm = (Button) findViewById(R.id.btnArm);
         btnLaunch = (Button) findViewById(R.id.btnLaunch);
-
-        spinner_conn = (ProgressBar) findViewById(R.id.spinner_conn);
-        spinner_arm = (ProgressBar) findViewById(R.id.spinner_arm);
-        spinner_launch = (ProgressBar) findViewById(R.id.spinner_launch);
-
-        tick_conn = (ImageView) findViewById(R.id.tick_conn);
-        tick_arm = (ImageView) findViewById(R.id.tick_arm);
-        tick_launch = (ImageView) findViewById(R.id.tick_launch);
 
         arrow_rot_left = (ImageView) findViewById(R.id.arrow_rot_left);
         arrow_forwards = (ImageView) findViewById(R.id.arrow_forward);
