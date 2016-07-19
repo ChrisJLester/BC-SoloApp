@@ -16,20 +16,6 @@
 
     </FrameLayout>
 
-    <FrameLayout android:id="@+id/frame_maps"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_alignRight="@+id/space"
-        android:layout_alignEnd="@+id/space"
-        android:layout_alignParentLeft="true"
-        android:layout_alignParentStart="true"
-        android:visibility="gone">
-
-        <include
-            layout="@layout/layout_maps" />
-
-    </FrameLayout>
-
     <Space
         android:layout_width="0dp"
         android:layout_height="0dp"
@@ -44,93 +30,110 @@
         android:layout_alignBottom="@+id/space"
         android:background="#000">
 
+        <Button android:id="@+id/btnLoadStream"
+            android:layout_width="130dp"
+            android:layout_height="130dp"
+            android:text="Load Stream"
+            android:onClick="onBtnStreamLoad"
+            android:layout_centerInParent="true"
+            android:visibility="visible"
+            android:textColor="#fff"
+            android:background="@drawable/rounded_button_conn"/>
+
         <TextureView android:id="@+id/stream_view"
             android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+            android:layout_height="match_parent"
+            android:layout_above="@+id/stream_controls" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:orientation="horizontal"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:layout_alignParentBottom="true"
+            android:id="@+id/stream_controls"
+            android:background="#fff"
+            android:visibility="gone">
+
+            <Button
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Look Up"
+                android:onClick="onBtnLookUp"
+                />
+
+            <Button
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Look Down"
+                android:onClick="onBtnLookDown"/>
+
+            <Button
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Record"
+                android:onClick="onBtnRecord"/>
+
+        </LinearLayout>
 
     </RelativeLayout>
 
-    <RelativeLayout android:id="@+id/control_panel"
+    <LinearLayout android:id="@+id/control_panel"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_toRightOf="@+id/frame_controls"
         android:layout_toEndOf="@+id/frame_controls"
-        android:layout_below="@+id/frame_stream">
+        android:layout_below="@+id/frame_stream"
+        android:orientation="horizontal">
 
-        <Button
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Load"
-            android:onClick="onBtnStreamLoad"/>
+        <RelativeLayout
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:padding="@dimen/activity_horizontal_margin">
 
-        <Button
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Stop"
-            android:id="@+id/button"
-            android:onClick="onBtnStop"
-            android:layout_centerVertical="true"
-            android:layout_centerHorizontal="true" />
+            <Button
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Stop"
+                android:textAppearance="@style/TextAppearance.AppCompat.Large.Inverse"
+                android:id="@+id/button"
+                android:onClick="onBtnStop"
+                android:background="@drawable/rounded_button_takeoff"
+                android:layout_alignParentTop="true"
+                android:layout_alignParentBottom="true"
+                android:layout_alignParentLeft="true"
+                android:layout_alignParentStart="true"
+                android:layout_alignParentRight="true"
+                android:layout_alignParentEnd="true" />
 
-        <Button
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Land"
-            android:id="@+id/button2"
-            android:onClick="onBtnLand"
-            android:layout_centerVertical="true"
-            android:layout_toRightOf="@+id/button"
-            android:layout_toEndOf="@+id/button" />
+        </RelativeLayout>
 
-        <Button
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Guided Mode"
-            android:id="@+id/button3"
-            android:onClick="onBtnForceGuidedMode"
-            android:layout_centerVertical="true"
-            android:layout_toLeftOf="@+id/button"
-            android:layout_toStartOf="@+id/button" />
+        <RelativeLayout
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:padding="@dimen/activity_horizontal_margin">
 
-        <Button
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Follow me"
-            android:id="@+id/btnFollow"
-            android:layout_below="@+id/button"
-            android:layout_centerHorizontal="true"
-            android:onClick="onBtnFollow"/>
+            <Button
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Land"
+                android:textAppearance="@style/TextAppearance.AppCompat.Large.Inverse"
+                android:id="@+id/button2"
+                android:onClick="onBtnLand"
+                android:background="@drawable/rounded_button_takeoff"
+                android:layout_alignParentTop="true"
+                android:layout_alignParentLeft="true"
+                android:layout_alignParentStart="true"
+                android:layout_alignParentBottom="true"
+                android:layout_alignParentRight="true"
+                android:layout_alignParentEnd="true" />
 
-        <Button
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Map"
-            android:id="@+id/btnMaps"
-            android:layout_below="@+id/button2"
-            android:layout_toRightOf="@+id/btnFollow"
-            android:layout_toEndOf="@+id/btnFollow"
-            android:onClick="onBtnMap"/>
+        </RelativeLayout>
 
-        <Button
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Cirlce me"
-            android:id="@+id/btnCircleMe"
-            android:layout_below="@+id/button3"
-            android:layout_alignLeft="@+id/button3"
-            android:layout_alignStart="@+id/button3"
-            android:onClick="onBtnCircleMe"/>
-
-        <Button
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Look at me"
-            android:id="@+id/btnLookAtMe"
-            android:layout_below="@+id/btnFollow"
-            android:layout_alignLeft="@+id/btnCircleMe"
-            android:layout_alignStart="@+id/btnCircleMe"
-            android:onClick="onBtnLookAtMe"/>
-
-    </RelativeLayout>
+    </LinearLayout>
 
 </RelativeLayout>

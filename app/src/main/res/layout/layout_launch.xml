@@ -14,7 +14,7 @@
 
         <ImageView
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="400dp"
             android:src="@drawable/square"
             android:adjustViewBounds="true"
             android:id="@+id/imageView3" />
@@ -31,7 +31,7 @@
             android:background="@drawable/rounded_button_conn"
             android:text="Connect"
             android:textSize="60sp"
-            android:onClick="onBtnConn" />
+            android:onClick="onBtnConn"/>
 
     </RelativeLayout>
 
@@ -44,7 +44,7 @@
 
         <ImageView
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="400dp"
             android:src="@drawable/square"
             android:adjustViewBounds="true"
             android:id="@+id/imageView4" />
@@ -75,7 +75,7 @@
 
         <ImageView
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="400dp"
             android:src="@drawable/square"
             android:adjustViewBounds="true"
             android:id="@+id/imageView5" />

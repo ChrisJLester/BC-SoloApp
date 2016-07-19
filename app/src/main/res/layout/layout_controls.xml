@@ -30,7 +30,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Rotate anti-clockwise"
-                android:textSize="30sp"/>
+                android:textSize="15sp"/>
         </LinearLayout>
 
         <LinearLayout
@@ -55,7 +55,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Forwards"
-                android:textSize="30sp" />
+                android:textSize="15sp" />
         </LinearLayout>
 
         <LinearLayout
@@ -80,7 +80,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Rotate clockwise"
-                android:textSize="30sp" />
+                android:textSize="15sp" />
         </LinearLayout>
     </TableRow>
 
@@ -110,10 +110,11 @@
                 android:layout_height="wrap_content"
                 android:text="Move left"
                 android:visibility="gone"
-                android:textSize="30sp"/>
+                android:textSize="15sp"/>
         </LinearLayout>
 
         <RelativeLayout
+            android:id="@+id/frame_center"
             android:padding="20dp"
             android:layout_span="2"
             android:layout_height="fill_parent"
@@ -151,7 +152,7 @@
                 android:layout_height="wrap_content"
                 android:text="Move right"
                 android:visibility="gone"
-                android:textSize="30sp" />
+                android:textSize="15sp" />
         </LinearLayout>
     </TableRow>
 
@@ -181,7 +182,7 @@
                 android:layout_height="wrap_content"
                 android:text="Decrease altitude"
                 android:visibility="gone"
-                android:textSize="30sp" />
+                android:textSize="15sp" />
         </LinearLayout>
 
         <LinearLayout
@@ -206,7 +207,7 @@
                 android:layout_height="wrap_content"
                 android:text="Backwards"
                 android:visibility="gone"
-                android:textSize="30sp" />
+                android:textSize="15sp" />
         </LinearLayout>
 
         <LinearLayout
@@ -231,7 +232,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Increase altitude"
-                android:textSize="30sp" />
+                android:textSize="15sp" />
         </LinearLayout>
     </TableRow>
 </TableLayout>

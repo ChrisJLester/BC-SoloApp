@@ -2,6 +2,7 @@ package com.beaumont.chrisj.bc_soloapp;
 
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import android.graphics.Color;
 import android.graphics.SurfaceTexture;
 import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
@@ -12,6 +13,9 @@ import android.view.TextureView;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -59,7 +63,7 @@ import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 
 import java.util.ArrayList;
 
-public class MainActivity extends AppCompatActivity implements TowerListener, DroneListener {
+public class MainActivity extends AppCompatActivity implements TowerListener, DroneListener, CompoundButton.OnCheckedChangeListener {
 
     //Drone Variables
     private ControlTower controlTower;
@@ -87,23 +91,22 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     //UI Components
     FrameLayout frame_launch, frame_flight;
     LinearLayout frame_rot_left, frame_forwards, frame_rot_right, frame_left, frame_right,
-            frame_alt_dec, frame_backwards, frame_alt_inc;
+            frame_alt_dec, frame_backwards, frame_alt_inc, frame_opts_layout, frame_opts_flight, frame_opts_skybox,
+            stream_controls;
     Button btnConn, btnArm, btnLaunch;
     ImageView arrow_rot_left, arrow_forwards, arrow_rot_right,
             arrow_left, arrow_right, arrow_alt_dec, arrow_backwards, arrow_alt_inc;
     TextView lbl_rot_left, lbl_forwards, lbl_rot_right, lbl_left, lbl_right, lbl_alt_dec,
-            lbl_backwards, lbl_alt_inc;
+            lbl_backwards, lbl_alt_inc, txtSettingsSkybox, txtSettingsFlight, txtSettingsLayout;
     TextureView stream_view;
+    EditText txtDirectionalDistance, txtRotationAngle, txtAltitudeDistance;
+
+    //Controls Variables
+    boolean stream_controls_visible, controls_directional, controls_rotation, controls_altitude, controls_arrows, controls_desc;
 
     //Other
     Boolean launch_procedure;
     Boolean landing;
-
-
-    //Maps
-    MapView map;
-    IMapController mapController;
-
 
     @Override
     public void onStart() {
@@ -166,10 +169,20 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
                 }
                 break;
             case AttributeEvent.STATE_ARMING:
-                if(this.drone.isConnected() && droneState.isArmed())
-                    btnLaunch.setVisibility(Button.VISIBLE);
-                else
-                    btnLaunch.setVisibility(Button.INVISIBLE);
+                if(landing){
+                    if(!droneState.isArmed()){
+                        frame_flight.setVisibility(RelativeLayout.INVISIBLE);
+                        frame_launch.setVisibility(RelativeLayout.VISIBLE);
+                        btnLaunch.setVisibility(Button.INVISIBLE);
+                        landing = false;
+                        force_Guided_mode();
+                    }
+                } else {
+                    if(this.drone.isConnected() && droneState.isArmed())
+                        btnLaunch.setVisibility(Button.VISIBLE);
+                    else
+                        btnLaunch.setVisibility(Button.INVISIBLE);
+                }
                 break;
             case AttributeEvent.TYPE_UPDATED:
                 Type newDroneType = this.drone.getAttribute(AttributeType.TYPE);
@@ -179,6 +192,9 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
                 break;
             case AttributeEvent.ATTITUDE_UPDATED:
                 attitude_updated();
+                break;
+            case AttributeEvent.AUTOPILOT_ERROR:
+                force_Guided_mode();
             default:
                 break;
         }
@@ -200,9 +216,6 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         landing = false;
 
         initUI();
-
-        map = (MapView) findViewById(R.id.map);
-        setupMap();
 
         this.controlTower = new ControlTower(getApplicationContext());
         this.drone = new Drone(getApplicationContext());
@@ -468,11 +481,11 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
             stopVideoStream();
         } else {
             if(stream_view.isAvailable()){
-                makeToast("Stream available");
+                startVideoStream(new Surface(stream_view.getSurfaceTexture()));
+                findViewById(R.id.btnLoadStream).setVisibility(Button.INVISIBLE);
             } else {
                 makeToast("Stream not available");
             }
-            startVideoStream(new Surface(stream_view.getSurfaceTexture()));
         }
     }
 
@@ -506,119 +519,68 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         GimbalApi.getApi(this.drone).stopGimbalControl(ol);
     }
 
+    public void onBtnLookUp(View v){
+        orientation = GimbalApi.getApi(this.drone).getGimbalOrientation();
+        float pitch = orientation.getPitch();
+        pitch = pitch + 5.0f;
 
-    //Flight Options
-    //=========================================================================
-    public void onTest(View v){
-        makeToast("Hello");
+        GimbalApi.getApi(this.drone).updateGimbalOrientation(pitch, orientation.getRoll(), orientation.getYaw(), ol);
     }
 
-    public void onBtnCircleMe(View v){
-        FollowState followState = this.drone.getAttribute(AttributeType.FOLLOW_STATE);
+    public void onBtnLookDown(View v){
+        orientation = GimbalApi.getApi(this.drone).getGimbalOrientation();
+        float pitch = orientation.getPitch();
+        pitch = pitch - 5.0f;
 
-        if(followState.isEnabled()) {
-            FollowApi.getApi(this.drone).disableFollowMe();
-        } else {
-            FollowApi.getApi(this.drone).enableFollowMe(FollowType.CIRCLE);
-            Bundle params = new Bundle();
-            params.putDouble(FollowType.EXTRA_FOLLOW_RADIUS, 5);
-            FollowApi.getApi(this.drone).updateFollowParams(params);
-        }
+        GimbalApi.getApi(this.drone).updateGimbalOrientation(pitch, orientation.getRoll(), orientation.getYaw(), ol);
     }
 
-    public void onBtnFollow(View v){
-        FollowState followState = this.drone.getAttribute(AttributeType.FOLLOW_STATE);
-
-        if(followState.isEnabled()) {
-            FollowApi.getApi(this.drone).disableFollowMe();
-        } else {
-            FollowApi.getApi(this.drone).enableFollowMe(FollowType.ABOVE);
-        }
-
-    }
-
-    public void onBtnLookAtMe(View v){
-        FollowState followState = this.drone.getAttribute(AttributeType.FOLLOW_STATE);
-
-        if(followState.isEnabled()) {
-            FollowApi.getApi(this.drone).disableFollowMe();
-        } else {
-            FollowApi.getApi(this.drone).enableFollowMe(FollowType.LOOK_AT_ME);
-        }
-    }
-
-
-    //Maps
-    //=========================================================================
-    public void onBtnMap(View v){
-        FrameLayout frame_controls = (FrameLayout) findViewById(R.id.frame_controls);
-        FrameLayout frame_maps = (FrameLayout) findViewById(R.id.frame_maps);
-
-        if(frame_controls.getVisibility() == FrameLayout.VISIBLE){
-            frame_controls.setVisibility(FrameLayout.INVISIBLE);
-            frame_maps.setVisibility(FrameLayout.VISIBLE);
-        } else {
-            frame_controls.setVisibility(FrameLayout.VISIBLE);
-            frame_maps.setVisibility(FrameLayout.INVISIBLE);
-        }
-    }
-
-    private void setupMap(){
-        final float scale = getBaseContext().getResources().getDisplayMetrics().density;
-        final int newScale = (int) (512 * scale);  //256
-        String[] OSMSource = new String[2];
-        OSMSource[0] = "http://a.tile.openstreetmap.org/";
-        OSMSource[1] = "http://b.tile.openstreetmap.org/";
-        XYTileSource MapSource = new XYTileSource("OSM", 1, 18, newScale, ".png", OSMSource);
-
-        mapController = map.getController();
-        mapController.setZoom(17);
-        GeoPoint startPoint = new GeoPoint(54.068154, -2.801643);
-        mapController.setCenter(startPoint);
-
-        /*location_overlay = new MyLocationNewOverlay(getApplicationContext(), map);
-        location_overlay.enableMyLocation();
-        location_overlay.enableFollowLocation();
-        location_overlay.setDrawAccuracyEnabled(true);
-        MapEventsOverlay mapEventsOverlay = new MapEventsOverlay(this, this);
-
-        DroneMarker droneMarker = new DroneMarker(map);
-        //Gps droneGPS = this.drone.getAttribute(AttributeType.GPS);
-        //GeoPoint dronePosition = new GeoPoint(droneGPS.getPosition().getLatitude(), droneGPS.getPosition().getLatitude());
-        droneMarker.setPosition(startPoint);
-        droneMarker.setTitle("Drone");*/
-
-        map.setTileSource(MapSource);
-        map.setMultiTouchControls(true);
-        map.setMinZoomLevel(2);
-        /*map.getOverlays().add(0, mapEventsOverlay);
-        map.getOverlays().add(1, location_overlay);
-        map.getOverlays().add(2, droneMarker);*/
-        map.invalidate();
-
-        /*Spinner s_onFinish = (Spinner)findViewById(R.id.spinner_Waypoints);
-        final TextView lblRepeatCount = (TextView)findViewById(R.id.lblRepeatCount);
-        final NumberPicker np_RepeatCount = (NumberPicker)findViewById(R.id.waypoint_numberpicker_repeat_count);
-        np_RepeatCount.setMinValue(1);
-        np_RepeatCount.setMaxValue(30);
-        np_RepeatCount.setValue(2);
-        s_onFinish.setSelection(3);
-        s_onFinish.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+    public void onBtnRecord(View v){
+        SoloCameraApi.getApi(drone).toggleVideoRecording(new AbstractCommandListener() {
             @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                if (position == 0) {
-                    lblRepeatCount.setVisibility(TextView.VISIBLE);
-                    np_RepeatCount.setVisibility(NumberPicker.VISIBLE);
-                } else {
-                    lblRepeatCount.setVisibility(TextView.GONE);
-                    np_RepeatCount.setVisibility(NumberPicker.GONE);
-                }
+            public void onSuccess() {
+                makeToast("Video recording toggled.");
             }
 
             @Override
-            public void onNothingSelected(AdapterView<?> parent) {
+            public void onError(int executionError) {
+                read_executionError("Error toggling record: ", executionError);
             }
-        });*/
+
+            @Override
+            public void onTimeout() {
+                makeToast("Timeout while trying to toggle video recording.");
+            }
+        });
+    }
+
+    //Options menu
+    //=========================================================================
+    public void switchBackground(View v){
+        frame_opts_layout.setVisibility(LinearLayout.GONE);
+        frame_opts_flight.setVisibility(LinearLayout.GONE);
+        frame_opts_skybox.setVisibility(LinearLayout.GONE);
+
+        txtSettingsFlight.setBackgroundColor(Color.TRANSPARENT);
+        txtSettingsLayout.setBackgroundColor(Color.TRANSPARENT);
+        txtSettingsSkybox.setBackgroundColor(Color.TRANSPARENT);
+
+        switch (v.getId()){
+            case(R.id.txtSettingsFlight):
+                txtSettingsFlight.setBackgroundColor(Color.WHITE);
+                frame_opts_flight.setVisibility(LinearLayout.VISIBLE);
+                break;
+            case(R.id.txtSettingsLayout):
+                txtSettingsLayout.setBackgroundColor(Color.WHITE);
+                frame_opts_layout.setVisibility(LinearLayout.VISIBLE);
+                break;
+            case(R.id.txtSettingsSkybox):
+                txtSettingsSkybox.setBackgroundColor(Color.WHITE);
+                frame_opts_skybox.setVisibility(LinearLayout.VISIBLE);
+                break;
+            default:
+                break;
+        }
     }
 
 
@@ -636,6 +598,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         frame_alt_dec = (LinearLayout) findViewById(R.id.frame_alt_dec);
         frame_backwards = (LinearLayout) findViewById(R.id.frame_backwards);
         frame_alt_inc = (LinearLayout) findViewById(R.id.frame_alt_inc);
+        stream_controls = (LinearLayout) findViewById(R.id.stream_controls);
 
         btnConn = (Button) findViewById(R.id.btnConn);
         btnArm = (Button) findViewById(R.id.btnArm);
@@ -663,7 +626,6 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         stream_view.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
             @Override
             public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-                makeToast("Video display is available.");
             }
 
             @Override
@@ -682,6 +644,13 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
             }
         });
         stream_loaded = false;
+
+        stream_controls_visible = false;
+        controls_directional = true;
+        controls_rotation = true;
+        controls_altitude = true;
+        controls_arrows = true;
+        controls_desc = false;
 
         ol = new orientationListener();
     }
@@ -709,31 +678,153 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
 
     @Override
     public void onBackPressed() {
-        final AlertDialog.Builder alertDialog = new AlertDialog.Builder(this);
-        LayoutInflater inflater = getLayoutInflater();
-        View convertView = (View) inflater.inflate(R.layout.frame_options, null);
-        alertDialog.setView(convertView);
-        alertDialog.setTitle("Options:");
-        alertDialog.setPositiveButton("Continue", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-            }
-        });
+        if(frame_launch.getVisibility() != FrameLayout.VISIBLE){
+            final AlertDialog.Builder alertDialog = new AlertDialog.Builder(this);
+            LayoutInflater inflater = getLayoutInflater();
+            View convertView = (View) inflater.inflate(R.layout.frame_options, null);
+            alertDialog.setView(convertView);
+            alertDialog.setTitle("Options:");
+            alertDialog.setPositiveButton("Continue", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    MOVEMENT_ALT = Integer.parseInt(txtAltitudeDistance.getText().toString());
+                    MOVEMENT_DEG = Integer.parseInt(txtRotationAngle.getText().toString());
+                    MOVEMENT_YAW = Integer.parseInt(txtDirectionalDistance.getText().toString());
+                    //TODO: Add limitations-
+                }
+            });
 
-        final AlertDialog alert = alertDialog.create();
-        alert.show();
+            final AlertDialog alert = alertDialog.create();
+            alert.show();
 
-        /*final CheckBox chkDirectional = (CheckBox) alert.findViewById(R.id.chkDirectional);
-        final CheckBox chkRotation = (CheckBox) alert.findViewById(R.id.chkRotation);
-        final CheckBox chkAltitude = (CheckBox) alert.findViewById(R.id.chkAltitude);
+            frame_opts_flight = (LinearLayout) alert.findViewById(R.id.frame_opts_flight);
+            frame_opts_layout = (LinearLayout) alert.findViewById(R.id.frame_opts_layout);
+            frame_opts_skybox = (LinearLayout) alert.findViewById(R.id.frame_opts_skybox);
 
-        chkDirectional.setOnCheckedChangeListener(this);
-        chkRotation.setOnCheckedChangeListener(this);
-        chkAltitude.setOnCheckedChangeListener(this);
+            txtSettingsFlight = (TextView) alert.findViewById(R.id.txtSettingsFlight);
+            txtSettingsLayout = (TextView) alert.findViewById(R.id.txtSettingsLayout);
+            txtSettingsSkybox = (TextView) alert.findViewById(R.id.txtSettingsSkybox);
 
-        chkDirectional.setChecked(controls_directional);
-        chkRotation.setChecked(controls_rotation);
-        chkAltitude.setChecked(controls_altitude);*/
+            final CheckBox chkToggleStreamControls = (CheckBox) alert.findViewById(R.id.chkToggleStreamControls);
+            final CheckBox chkToggleDirectional = (CheckBox) alert.findViewById(R.id.chkToggleDirectional);
+            final CheckBox chkToggleRotational = (CheckBox) alert.findViewById(R.id.chkToggleRotational);
+            final CheckBox chkToggleAltitude = (CheckBox) alert.findViewById(R.id.chkToggleAltitude);
+            final CheckBox chkToggleArrows = (CheckBox) alert.findViewById(R.id.chkToggleArrows);
+            final CheckBox chkToggleDesc = (CheckBox) alert.findViewById(R.id.chkToggleDesc);
+
+            chkToggleStreamControls.setOnCheckedChangeListener(this);
+            chkToggleDirectional.setOnCheckedChangeListener(this);
+            chkToggleRotational.setOnCheckedChangeListener(this);
+            chkToggleAltitude.setOnCheckedChangeListener(this);
+            chkToggleArrows.setOnCheckedChangeListener(this);
+            chkToggleDesc.setOnCheckedChangeListener(this);
+
+            chkToggleStreamControls.setChecked(stream_controls_visible);
+            chkToggleDirectional.setChecked(controls_directional);
+            chkToggleRotational.setChecked(controls_rotation);
+            chkToggleAltitude.setChecked(controls_altitude);
+            chkToggleArrows.setChecked(controls_arrows);
+            chkToggleDesc.setChecked(controls_desc);
+
+            txtDirectionalDistance = (EditText) alert.findViewById(R.id.txtDirectionalDistance);
+            txtRotationAngle = (EditText) alert.findViewById(R.id.txtRotationAngle);
+            txtAltitudeDistance = (EditText) alert.findViewById(R.id.txtAltitudeDistance);
+
+            txtDirectionalDistance.setText(Integer.toString(MOVEMENT_YAW));
+            txtRotationAngle.setText(Integer.toString(MOVEMENT_DEG));
+            txtAltitudeDistance.setText(Integer.toString(MOVEMENT_ALT));
+        }
+    }
+
+    @Override
+    public void onCheckedChanged(CompoundButton chkView, boolean isChecked) {
+        switch(chkView.getId()){
+            case R.id.chkToggleStreamControls:
+                stream_controls_visible = isChecked;
+                if(isChecked)
+                    stream_controls.setVisibility(LinearLayout.VISIBLE);
+                else
+                    stream_controls.setVisibility(LinearLayout.GONE);
+                break;
+            case R.id.chkToggleDirectional:
+                controls_directional = isChecked;
+                break;
+            case R.id.chkToggleRotational:
+                controls_rotation = isChecked;
+                break;
+            case R.id.chkToggleAltitude:
+                controls_altitude = isChecked;
+                break;
+            case R.id.chkToggleArrows:
+                controls_arrows = isChecked;
+                break;
+            case R.id.chkToggleDesc:
+                controls_desc = isChecked;
+                break;
+
+        }
+        updateControls();
+    }
+
+    private void updateControls(){
+        int directional_visible, rotation_visible, altitude_visible, arrows_visible, desc_visible;
+
+        if(controls_directional)
+            directional_visible = ImageView.VISIBLE;
+        else
+            directional_visible = ImageView.INVISIBLE;
+
+        if(controls_rotation)
+            rotation_visible = ImageView.VISIBLE;
+        else
+            rotation_visible = ImageView.INVISIBLE;
+
+        if(controls_altitude)
+            altitude_visible = ImageView.VISIBLE;
+        else
+            altitude_visible = ImageView.INVISIBLE;
+
+        if(controls_arrows)
+            arrows_visible = ImageView.VISIBLE;
+        else
+            arrows_visible = ImageView.GONE;
+
+        if(controls_desc)
+            desc_visible = TextView.VISIBLE;
+        else
+            desc_visible = TextView.INVISIBLE;
+
+
+
+        frame_forwards.setVisibility(directional_visible);
+        frame_right.setVisibility(directional_visible);
+        frame_backwards.setVisibility(directional_visible);
+        frame_left.setVisibility(directional_visible);
+        findViewById(R.id.frame_center).setVisibility(directional_visible);
+
+        frame_rot_right.setVisibility(rotation_visible);
+        frame_rot_left.setVisibility(rotation_visible);
+
+        frame_alt_inc.setVisibility(altitude_visible);
+        frame_alt_dec.setVisibility(altitude_visible);
+
+        lbl_rot_left.setVisibility(desc_visible);
+        lbl_forwards.setVisibility(desc_visible);
+        lbl_rot_right.setVisibility(desc_visible);
+        lbl_left.setVisibility(desc_visible);
+        lbl_right.setVisibility(desc_visible);
+        lbl_alt_dec.setVisibility(desc_visible);
+        lbl_backwards.setVisibility(desc_visible);
+        lbl_alt_inc.setVisibility(desc_visible);
+
+        arrow_rot_left.setVisibility(arrows_visible);
+        arrow_forwards.setVisibility(arrows_visible);
+        arrow_rot_right.setVisibility(arrows_visible);
+        arrow_left.setVisibility(arrows_visible);
+        arrow_right.setVisibility(arrows_visible);
+        arrow_alt_dec.setVisibility(arrows_visible);
+        arrow_backwards.setVisibility(arrows_visible);
+        arrow_alt_inc.setVisibility(arrows_visible);
     }
 
     public class orientationListener implements GimbalApi.GimbalOrientationListener{
