@@ -211,6 +211,143 @@
             android:gravity="center"
             android:visibility="gone">
 
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:gravity="center_vertical">
+
+                <CheckBox
+                    android:id="@+id/chkBox_EnableSkyBox"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="@dimen/activity_vertical_margin"
+                    android:layout_marginStart="@dimen/activity_vertical_margin"
+                    android:text="Enable Skybox"
+                    android:textAppearance="@style/TextAppearance.AppCompat.Large"/>
+
+
+                <RadioGroup
+                    android:id="@+id/radiogroup_SkyBoxShape"
+                    android:visibility="invisible"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="@dimen/activity_vertical_margin"
+                    android:orientation="horizontal">
+
+                    <RadioButton
+                        android:id="@+id/radio_Cuboid"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Cuboid"/>
+
+                    <RadioButton
+                        android:id="@+id/radio_Cylinder"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="@dimen/activity_vertical_margin"
+                        android:layout_marginStart="@dimen/activity_vertical_margin"
+                        android:text="Cylinder"/>
+
+                </RadioGroup>
+
+                <TextView
+                    android:id="@+id/txtSkyBoxHeight"
+                    android:visibility="invisible"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="@dimen/activity_vertical_margin"
+                    android:text="Height:"/>
+
+                <SeekBar
+                    android:id="@+id/seekerSkyBoxHeight"
+                    android:visibility="invisible"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingRight="@dimen/activity_horizontal_margin"
+                    android:paddingEnd="@dimen/activity_horizontal_margin"
+                    android:paddingLeft="@dimen/activity_horizontal_margin"
+                    android:paddingStart="@dimen/activity_horizontal_margin"/>
+
+                <TextView
+                    android:id="@+id/txtSkyBoxWidth"
+                    android:visibility="invisible"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:text="Width:"/>
+
+                <SeekBar
+                    android:id="@+id/seekerSkyBoxWidth"
+                    android:visibility="invisible"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingRight="@dimen/activity_horizontal_margin"
+                    android:paddingEnd="@dimen/activity_horizontal_margin"
+                    android:paddingLeft="@dimen/activity_horizontal_margin"
+                    android:paddingStart="@dimen/activity_horizontal_margin"/>
+
+                <LinearLayout
+                    android:id="@+id/layout_diagram"
+                    android:visibility="invisible"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:text="20"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:text=" meters"/>
+
+                    <ImageView
+                        android:id="@+id/img_diagram"
+                        android:layout_width="220dp"
+                        android:layout_height="220dp"
+                        android:src="@drawable/diagram_cuboid"/>
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/layout_width"
+                    android:visibility="invisible"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:text="20"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:text=" meters"/>
+
+                </LinearLayout>
+
+                <CheckBox
+                    android:id="@+id/chkBox_ButtonDisablement"
+                    android:visibility="invisible"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="@dimen/activity_vertical_margin"
+                    android:text="Disable buttons when the drone reaches the edges"/>
+
+            </LinearLayout>
+
         </LinearLayout>
 
     </RelativeLayout>

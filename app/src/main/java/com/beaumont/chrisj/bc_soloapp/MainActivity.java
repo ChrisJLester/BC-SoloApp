@@ -11,7 +11,6 @@ import android.view.LayoutInflater;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
-import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
@@ -19,17 +18,16 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.NumberPicker;
-import android.widget.ProgressBar;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.RelativeLayout;
-import android.widget.Spinner;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.o3dr.android.client.ControlTower;
 import com.o3dr.android.client.Drone;
 import com.o3dr.android.client.apis.ControlApi;
-import com.o3dr.android.client.apis.FollowApi;
 import com.o3dr.android.client.apis.GimbalApi;
 import com.o3dr.android.client.apis.VehicleApi;
 import com.o3dr.android.client.apis.solo.SoloCameraApi;
@@ -48,20 +46,9 @@ import com.o3dr.services.android.lib.drone.property.Gps;
 import com.o3dr.services.android.lib.drone.property.State;
 import com.o3dr.services.android.lib.drone.property.Type;
 import com.o3dr.services.android.lib.drone.property.VehicleMode;
-import com.o3dr.services.android.lib.gcs.follow.FollowState;
-import com.o3dr.services.android.lib.gcs.follow.FollowType;
 import com.o3dr.services.android.lib.model.AbstractCommandListener;
 import com.o3dr.services.android.lib.model.SimpleCommandListener;
 import com.o3dr.services.android.lib.util.MathUtils;
-
-import org.osmdroid.api.IMapController;
-import org.osmdroid.bonuspack.overlays.MapEventsOverlay;
-import org.osmdroid.tileprovider.tilesource.XYTileSource;
-import org.osmdroid.util.GeoPoint;
-import org.osmdroid.views.MapView;
-import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
-
-import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity implements TowerListener, DroneListener, CompoundButton.OnCheckedChangeListener {
 
@@ -92,21 +79,23 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     FrameLayout frame_launch, frame_flight;
     LinearLayout frame_rot_left, frame_forwards, frame_rot_right, frame_left, frame_right,
             frame_alt_dec, frame_backwards, frame_alt_inc, frame_opts_layout, frame_opts_flight, frame_opts_skybox,
-            stream_controls;
+            stream_controls, layout_diagram, layout_width;
     Button btnConn, btnArm, btnLaunch;
     ImageView arrow_rot_left, arrow_forwards, arrow_rot_right,
             arrow_left, arrow_right, arrow_alt_dec, arrow_backwards, arrow_alt_inc;
     TextView lbl_rot_left, lbl_forwards, lbl_rot_right, lbl_left, lbl_right, lbl_alt_dec,
-            lbl_backwards, lbl_alt_inc, txtSettingsSkybox, txtSettingsFlight, txtSettingsLayout;
+            lbl_backwards, lbl_alt_inc, txtSettingsSkybox, txtSettingsFlight, txtSettingsLayout,
+            txtSkyBoxHeight, txtSkyBoxWidth;
     TextureView stream_view;
     EditText txtDirectionalDistance, txtRotationAngle, txtAltitudeDistance;
+    RadioGroup radiogroup_SkyBoxShape;
+    SeekBar seekerSkyBoxHeight, seekerSkyBoxWidth;
 
     //Controls Variables
     boolean stream_controls_visible, controls_directional, controls_rotation, controls_altitude, controls_arrows, controls_desc;
 
     //Other
-    Boolean launch_procedure;
-    Boolean landing;
+    boolean launch_procedure, landing, skybox_enabled;
 
     @Override
     public void onStart() {
@@ -214,6 +203,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
 
         launch_procedure = true;
         landing = false;
+        skybox_enabled = false;
 
         initUI();
 
@@ -583,6 +573,123 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         }
     }
 
+    public void setupFlightOptions(){
+        final AlertDialog.Builder alertDialog = new AlertDialog.Builder(this);
+        LayoutInflater inflater = getLayoutInflater();
+        View convertView = (View) inflater.inflate(R.layout.frame_options, null);
+        alertDialog.setView(convertView);
+        alertDialog.setTitle("Options:");
+        alertDialog.setPositiveButton("Continue", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                MOVEMENT_ALT = Integer.parseInt(txtAltitudeDistance.getText().toString());
+                MOVEMENT_DEG = Integer.parseInt(txtRotationAngle.getText().toString());
+                MOVEMENT_YAW = Integer.parseInt(txtDirectionalDistance.getText().toString());
+                //TODO: Add limitations-
+            }
+        });
+
+        final AlertDialog alert = alertDialog.create();
+        alert.show();
+
+        frame_opts_flight = (LinearLayout) alert.findViewById(R.id.frame_opts_flight);
+        frame_opts_layout = (LinearLayout) alert.findViewById(R.id.frame_opts_layout);
+        frame_opts_skybox = (LinearLayout) alert.findViewById(R.id.frame_opts_skybox);
+
+        txtSettingsFlight = (TextView) alert.findViewById(R.id.txtSettingsFlight);
+        txtSettingsLayout = (TextView) alert.findViewById(R.id.txtSettingsLayout);
+        txtSettingsSkybox = (TextView) alert.findViewById(R.id.txtSettingsSkybox);
+
+        radiogroup_SkyBoxShape = (RadioGroup) alert.findViewById(R.id.radiogroup_SkyBoxShape);
+        txtSkyBoxHeight = (TextView) alert.findViewById(R.id.txtSkyBoxHeight);
+        seekerSkyBoxHeight = (SeekBar) alert.findViewById(R.id.seekerSkyBoxHeight);
+        txtSkyBoxWidth = (TextView) alert.findViewById(R.id.txtSkyBoxWidth);
+        seekerSkyBoxWidth = (SeekBar) alert.findViewById(R.id.seekerSkyBoxWidth);
+        layout_diagram = (LinearLayout) alert.findViewById(R.id.layout_diagram);
+        layout_width = (LinearLayout) alert.findViewById(R.id.layout_width);
+
+        final CheckBox chkToggleStreamControls = (CheckBox) alert.findViewById(R.id.chkToggleStreamControls);
+        final CheckBox chkToggleDirectional = (CheckBox) alert.findViewById(R.id.chkToggleDirectional);
+        final CheckBox chkToggleRotational = (CheckBox) alert.findViewById(R.id.chkToggleRotational);
+        final CheckBox chkToggleAltitude = (CheckBox) alert.findViewById(R.id.chkToggleAltitude);
+        final CheckBox chkToggleArrows = (CheckBox) alert.findViewById(R.id.chkToggleArrows);
+        final CheckBox chkToggleDesc = (CheckBox) alert.findViewById(R.id.chkToggleDesc);
+        final CheckBox chkEnableSkyBox = (CheckBox) alert.findViewById(R.id.chkBox_EnableSkyBox);
+        final CheckBox chkBox_ButtonDisablement = (CheckBox) alert.findViewById(R.id.chkBox_ButtonDisablement);
+
+        chkToggleStreamControls.setOnCheckedChangeListener(this);
+        chkToggleDirectional.setOnCheckedChangeListener(this);
+        chkToggleRotational.setOnCheckedChangeListener(this);
+        chkToggleAltitude.setOnCheckedChangeListener(this);
+        chkToggleArrows.setOnCheckedChangeListener(this);
+        chkToggleDesc.setOnCheckedChangeListener(this);
+
+        chkEnableSkyBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                skybox_enabled = isChecked;
+                if (isChecked) {
+
+                    SkyboxInfo();
+
+                    radiogroup_SkyBoxShape.setVisibility(RadioGroup.VISIBLE);
+                    txtSkyBoxHeight.setVisibility(TextView.VISIBLE);
+                    txtSkyBoxWidth.setVisibility(TextView.VISIBLE);
+                    seekerSkyBoxHeight.setVisibility(SeekBar.VISIBLE);
+                    seekerSkyBoxWidth.setVisibility(SeekBar.VISIBLE);
+                    layout_diagram.setVisibility(SeekBar.VISIBLE);
+                    layout_width.setVisibility(SeekBar.VISIBLE);
+                    chkBox_ButtonDisablement.setVisibility(CheckBox.VISIBLE);
+                } else {
+                    radiogroup_SkyBoxShape.setVisibility(RadioGroup.INVISIBLE);
+                    txtSkyBoxHeight.setVisibility(TextView.INVISIBLE);
+                    txtSkyBoxWidth.setVisibility(TextView.INVISIBLE);
+                    seekerSkyBoxHeight.setVisibility(SeekBar.INVISIBLE);
+                    seekerSkyBoxWidth.setVisibility(SeekBar.INVISIBLE);
+                    layout_diagram.setVisibility(SeekBar.INVISIBLE);
+                    layout_width.setVisibility(SeekBar.INVISIBLE);
+                    chkBox_ButtonDisablement.setVisibility(CheckBox.INVISIBLE);
+                }
+            }
+        });
+
+        chkToggleStreamControls.setChecked(stream_controls_visible);
+        chkToggleDirectional.setChecked(controls_directional);
+        chkToggleRotational.setChecked(controls_rotation);
+        chkToggleAltitude.setChecked(controls_altitude);
+        chkToggleArrows.setChecked(controls_arrows);
+        chkToggleDesc.setChecked(controls_desc);
+        chkEnableSkyBox.setChecked(skybox_enabled);
+
+        final RadioButton radio_Cuboid = (RadioButton) alert.findViewById(R.id.radio_Cuboid);
+        final ImageView diagram = (ImageView) alert.findViewById(R.id.img_diagram);
+
+        radio_Cuboid.setChecked(true);
+        radiogroup_SkyBoxShape.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(RadioGroup group, int checkedId) {
+                switch (checkedId){
+                    case R.id.radio_Cuboid:
+                        diagram.setImageDrawable(getResources().getDrawable(R.drawable.diagram_cuboid));
+                        txtSkyBoxWidth.setText("Radius:");
+                        break;
+                    case R.id.radio_Cylinder:
+                        diagram.setImageDrawable(getResources().getDrawable(R.drawable.diagram_cylinder));
+                        txtSkyBoxWidth.setText("Width:");
+                        break;
+                }
+            }
+        });
+
+        txtDirectionalDistance = (EditText) alert.findViewById(R.id.txtDirectionalDistance);
+        txtRotationAngle = (EditText) alert.findViewById(R.id.txtRotationAngle);
+        txtAltitudeDistance = (EditText) alert.findViewById(R.id.txtAltitudeDistance);
+
+        txtDirectionalDistance.setText(Integer.toString(MOVEMENT_YAW));
+        txtRotationAngle.setText(Integer.toString(MOVEMENT_DEG));
+        txtAltitudeDistance.setText(Integer.toString(MOVEMENT_ALT));
+    }
+
 
     //Other
     //=========================================================================
@@ -679,65 +786,15 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     @Override
     public void onBackPressed() {
         if(frame_launch.getVisibility() != FrameLayout.VISIBLE){
-            final AlertDialog.Builder alertDialog = new AlertDialog.Builder(this);
-            LayoutInflater inflater = getLayoutInflater();
-            View convertView = (View) inflater.inflate(R.layout.frame_options, null);
-            alertDialog.setView(convertView);
-            alertDialog.setTitle("Options:");
-            alertDialog.setPositiveButton("Continue", new DialogInterface.OnClickListener() {
-                @Override
-                public void onClick(DialogInterface dialog, int which) {
-                    MOVEMENT_ALT = Integer.parseInt(txtAltitudeDistance.getText().toString());
-                    MOVEMENT_DEG = Integer.parseInt(txtRotationAngle.getText().toString());
-                    MOVEMENT_YAW = Integer.parseInt(txtDirectionalDistance.getText().toString());
-                    //TODO: Add limitations-
-                }
-            });
-
-            final AlertDialog alert = alertDialog.create();
-            alert.show();
-
-            frame_opts_flight = (LinearLayout) alert.findViewById(R.id.frame_opts_flight);
-            frame_opts_layout = (LinearLayout) alert.findViewById(R.id.frame_opts_layout);
-            frame_opts_skybox = (LinearLayout) alert.findViewById(R.id.frame_opts_skybox);
-
-            txtSettingsFlight = (TextView) alert.findViewById(R.id.txtSettingsFlight);
-            txtSettingsLayout = (TextView) alert.findViewById(R.id.txtSettingsLayout);
-            txtSettingsSkybox = (TextView) alert.findViewById(R.id.txtSettingsSkybox);
-
-            final CheckBox chkToggleStreamControls = (CheckBox) alert.findViewById(R.id.chkToggleStreamControls);
-            final CheckBox chkToggleDirectional = (CheckBox) alert.findViewById(R.id.chkToggleDirectional);
-            final CheckBox chkToggleRotational = (CheckBox) alert.findViewById(R.id.chkToggleRotational);
-            final CheckBox chkToggleAltitude = (CheckBox) alert.findViewById(R.id.chkToggleAltitude);
-            final CheckBox chkToggleArrows = (CheckBox) alert.findViewById(R.id.chkToggleArrows);
-            final CheckBox chkToggleDesc = (CheckBox) alert.findViewById(R.id.chkToggleDesc);
-
-            chkToggleStreamControls.setOnCheckedChangeListener(this);
-            chkToggleDirectional.setOnCheckedChangeListener(this);
-            chkToggleRotational.setOnCheckedChangeListener(this);
-            chkToggleAltitude.setOnCheckedChangeListener(this);
-            chkToggleArrows.setOnCheckedChangeListener(this);
-            chkToggleDesc.setOnCheckedChangeListener(this);
-
-            chkToggleStreamControls.setChecked(stream_controls_visible);
-            chkToggleDirectional.setChecked(controls_directional);
-            chkToggleRotational.setChecked(controls_rotation);
-            chkToggleAltitude.setChecked(controls_altitude);
-            chkToggleArrows.setChecked(controls_arrows);
-            chkToggleDesc.setChecked(controls_desc);
-
-            txtDirectionalDistance = (EditText) alert.findViewById(R.id.txtDirectionalDistance);
-            txtRotationAngle = (EditText) alert.findViewById(R.id.txtRotationAngle);
-            txtAltitudeDistance = (EditText) alert.findViewById(R.id.txtAltitudeDistance);
-
-            txtDirectionalDistance.setText(Integer.toString(MOVEMENT_YAW));
-            txtRotationAngle.setText(Integer.toString(MOVEMENT_DEG));
-            txtAltitudeDistance.setText(Integer.toString(MOVEMENT_ALT));
+            setupFlightOptions();
+        } else {
+            makeToast("Hello");
         }
     }
 
     @Override
     public void onCheckedChanged(CompoundButton chkView, boolean isChecked) {
+
         switch(chkView.getId()){
             case R.id.chkToggleStreamControls:
                 stream_controls_visible = isChecked;
@@ -761,8 +818,8 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
             case R.id.chkToggleDesc:
                 controls_desc = isChecked;
                 break;
-
         }
+
         updateControls();
     }
 
@@ -825,6 +882,18 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         arrow_alt_dec.setVisibility(arrows_visible);
         arrow_backwards.setVisibility(arrows_visible);
         arrow_alt_inc.setVisibility(arrows_visible);
+    }
+
+    private void SkyboxInfo(){
+        final AlertDialog.Builder infoDialog = new AlertDialog.Builder(this);
+        infoDialog.setTitle("Skybox info");
+        infoDialog.setMessage("The base of the Skybox is aligned to the height of take off (15 meters up), not the ground. " +
+                "So at the start the drone will be situated in the center of the base of the Skybox. " +
+                "If you turn on the Skybox after doing some maneouveours, the base will still be 15 meters of the ground ");
+        infoDialog.setPositiveButton("Continue", null);
+
+        final AlertDialog alert = infoDialog.create();
+        alert.show();
     }
 
     public class orientationListener implements GimbalApi.GimbalOrientationListener{
