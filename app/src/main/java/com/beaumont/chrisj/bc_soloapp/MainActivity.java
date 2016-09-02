@@ -91,12 +91,14 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     EditText txtDirectionalDistance, txtRotationAngle, txtAltitudeDistance;
     RadioGroup radiogroup_SkyBoxShape;
     SeekBar seekerSkyBoxHeight, seekerSkyBoxWidth;
+    int skybox_height, skybox_width, SKYBOX_HGHT_RISTRICTION, SKYBOX_WIDTH_RISTRICTION, SKYBOX_MIN_WIDTH, SKYBOX_MIN_HGHT;
 
     //Controls Variables
     boolean stream_controls_visible, controls_directional, controls_rotation, controls_altitude, controls_arrows, controls_desc;
 
     //Other
     boolean launch_procedure, landing, skybox_enabled, skybox_cuboid;
+
 
     @Override
     public void onStart() {
@@ -202,10 +204,17 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         YAW_CHK_DUR = 5000;
         LAUNCH_HGHT = 15;
 
+        SKYBOX_HGHT_RISTRICTION = 120;
+        SKYBOX_WIDTH_RISTRICTION = 500;
+        SKYBOX_MIN_HGHT = 20;
+        SKYBOX_MIN_WIDTH = 50;
+
         launch_procedure = true;
         landing = false;
         skybox_enabled = false;
         skybox_cuboid = true;
+        skybox_height = 50;
+        skybox_width = 150;
 
         initUI();
 
@@ -612,14 +621,16 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         layout_diagram = (LinearLayout) alert.findViewById(R.id.layout_diagram);
         layout_width = (LinearLayout) alert.findViewById(R.id.layout_width);
 
-        final TextView skybox_height = (TextView) alert.findViewById(R.id.skybox_height);
+        final TextView skybox_height_txt = (TextView) alert.findViewById(R.id.skybox_height);
+        skybox_height_txt.setText(Integer.toString(skybox_height));
 
-        seekerSkyBoxHeight.setMax(105);
-        seekerSkyBoxHeight.setProgress(20);
+        seekerSkyBoxHeight.setMax(SKYBOX_HGHT_RISTRICTION - LAUNCH_HGHT - SKYBOX_MIN_HGHT);
+        seekerSkyBoxHeight.setProgress(skybox_height - SKYBOX_MIN_HGHT);
         seekerSkyBoxHeight.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                skybox_height.setText(Integer.toString(progress));
+                skybox_height = progress + SKYBOX_MIN_HGHT;
+                skybox_height_txt.setText(Integer.toString(skybox_height));
             }
 
             @Override
@@ -629,7 +640,45 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
 
+        final TextView skybox_width_txt = (TextView) alert.findViewById(R.id.skybox_width);
+        final RadioButton radio_Cuboid = (RadioButton) alert.findViewById(R.id.radio_Cuboid);
+        final RadioButton radio_Cylinder = (RadioButton) alert.findViewById(R.id.radio_Cylinder);
+        final ImageView diagram = (ImageView) alert.findViewById(R.id.img_diagram);
+
+        if(skybox_cuboid) {
+            radio_Cuboid.setChecked(true);
+            skybox_width_txt.setText(Integer.toString(skybox_width));
+        } else{
+            radio_Cylinder.setChecked(true);
+            skybox_width_txt.setText(Integer.toString(skybox_width / 2));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
+                diagram.setImageDrawable(getResources().getDrawable(R.drawable.diagram_cylinder, getApplicationContext().getTheme()));
+            else
+                diagram.setImageDrawable(getResources().getDrawable(R.drawable.diagram_cylinder));
+        }
+
+        seekerSkyBoxWidth.setMax(SKYBOX_WIDTH_RISTRICTION - SKYBOX_MIN_WIDTH);
+        seekerSkyBoxWidth.setProgress(skybox_width - SKYBOX_MIN_WIDTH);
+        seekerSkyBoxWidth.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                skybox_width = progress + SKYBOX_MIN_WIDTH;
+                if(skybox_cuboid)
+                    skybox_width_txt.setText(Integer.toString(skybox_width));
+                else
+                    skybox_width_txt.setText(Integer.toString(skybox_width / 2));
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
             }
         });
 
@@ -686,10 +735,6 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         chkToggleDesc.setChecked(controls_desc);
         chkEnableSkyBox.setChecked(skybox_enabled);
 
-        final RadioButton radio_Cuboid = (RadioButton) alert.findViewById(R.id.radio_Cuboid);
-        final ImageView diagram = (ImageView) alert.findViewById(R.id.img_diagram);
-
-        radio_Cuboid.setChecked(true);
         radiogroup_SkyBoxShape.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(RadioGroup group, int checkedId) {
@@ -702,6 +747,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
 
                         txtSkyBoxWidth.setText("Width:");
                         skybox_cuboid = true;
+                        skybox_width_txt.setText(Integer.toString(skybox_width));
                         break;
                     case R.id.radio_Cylinder:
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
@@ -711,6 +757,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
 
                         txtSkyBoxWidth.setText("Radius:");
                         skybox_cuboid = false;
+                        skybox_width_txt.setText(Integer.toString(skybox_width / 2));
                         break;
                 }
             }
