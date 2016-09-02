@@ -4,6 +4,7 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.graphics.Color;
 import android.graphics.SurfaceTexture;
+import android.os.Build;
 import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -95,7 +96,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     boolean stream_controls_visible, controls_directional, controls_rotation, controls_altitude, controls_arrows, controls_desc;
 
     //Other
-    boolean launch_procedure, landing, skybox_enabled;
+    boolean launch_procedure, landing, skybox_enabled, skybox_cuboid;
 
     @Override
     public void onStart() {
@@ -204,6 +205,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         launch_procedure = true;
         landing = false;
         skybox_enabled = false;
+        skybox_cuboid = true;
 
         initUI();
 
@@ -411,6 +413,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     }
 
     private void rotate(){
+        force_Guided_mode();
         ControlApi.getApi(this.drone).turnTo((float) yaw_before_action, TURN_SPD, false, new AbstractCommandListener() {
             @Override
             public void onSuccess() {
@@ -429,6 +432,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     }
 
     private void moveDrone(double bearing){
+        force_Guided_mode();
         yaw_before_action = drone_yaw;
 
         double target_bearing = bearing + drone_yaw;
@@ -608,6 +612,27 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         layout_diagram = (LinearLayout) alert.findViewById(R.id.layout_diagram);
         layout_width = (LinearLayout) alert.findViewById(R.id.layout_width);
 
+        final TextView skybox_height = (TextView) alert.findViewById(R.id.skybox_height);
+
+        seekerSkyBoxHeight.setMax(105);
+        seekerSkyBoxHeight.setProgress(20);
+        seekerSkyBoxHeight.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                skybox_height.setText(Integer.toString(progress));
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+
+            }
+        });
+
         final CheckBox chkToggleStreamControls = (CheckBox) alert.findViewById(R.id.chkToggleStreamControls);
         final CheckBox chkToggleDirectional = (CheckBox) alert.findViewById(R.id.chkToggleDirectional);
         final CheckBox chkToggleRotational = (CheckBox) alert.findViewById(R.id.chkToggleRotational);
@@ -670,12 +695,22 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
             public void onCheckedChanged(RadioGroup group, int checkedId) {
                 switch (checkedId){
                     case R.id.radio_Cuboid:
-                        diagram.setImageDrawable(getResources().getDrawable(R.drawable.diagram_cuboid));
-                        txtSkyBoxWidth.setText("Radius:");
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
+                            diagram.setImageDrawable(getResources().getDrawable(R.drawable.diagram_cuboid, getApplicationContext().getTheme()));
+                        else
+                            diagram.setImageDrawable(getResources().getDrawable(R.drawable.diagram_cuboid));
+
+                        txtSkyBoxWidth.setText("Width:");
+                        skybox_cuboid = true;
                         break;
                     case R.id.radio_Cylinder:
-                        diagram.setImageDrawable(getResources().getDrawable(R.drawable.diagram_cylinder));
-                        txtSkyBoxWidth.setText("Width:");
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
+                            diagram.setImageDrawable(getResources().getDrawable(R.drawable.diagram_cylinder, getApplicationContext().getTheme()));
+                        else
+                            diagram.setImageDrawable(getResources().getDrawable(R.drawable.diagram_cylinder));
+
+                        txtSkyBoxWidth.setText("Radius:");
+                        skybox_cuboid = false;
                         break;
                 }
             }
