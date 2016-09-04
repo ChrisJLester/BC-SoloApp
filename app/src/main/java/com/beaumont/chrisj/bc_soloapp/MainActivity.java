@@ -97,7 +97,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     boolean stream_controls_visible, controls_directional, controls_rotation, controls_altitude, controls_arrows, controls_desc;
 
     //Other
-    boolean launch_procedure, landing, skybox_enabled, skybox_cuboid;
+    boolean launch_procedure, landing, skybox_enabled, skybox_cuboid, skybox_ButtonDisablement;
 
 
     @Override
@@ -213,6 +213,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         landing = false;
         skybox_enabled = false;
         skybox_cuboid = true;
+        skybox_ButtonDisablement = false;
         skybox_height = 50;
         skybox_width = 150;
 
@@ -605,6 +606,26 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         final AlertDialog alert = alertDialog.create();
         alert.show();
 
+        final TextView skybox_height_txt = (TextView) alert.findViewById(R.id.skybox_height);
+        skybox_height_txt.setText(Integer.toString(skybox_height));
+
+        final TextView skybox_width_txt = (TextView) alert.findViewById(R.id.skybox_width);
+        final RadioButton radio_Cuboid = (RadioButton) alert.findViewById(R.id.radio_Cuboid);
+        final RadioButton radio_Cylinder = (RadioButton) alert.findViewById(R.id.radio_Cylinder);
+        final ImageView diagram = (ImageView) alert.findViewById(R.id.img_diagram);
+
+        if(skybox_cuboid) {
+            radio_Cuboid.setChecked(true);
+            skybox_width_txt.setText(Integer.toString(skybox_width));
+        } else{
+            radio_Cylinder.setChecked(true);
+            skybox_width_txt.setText(Integer.toString(skybox_width / 2));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
+                diagram.setImageDrawable(getResources().getDrawable(R.drawable.diagram_cylinder, getApplicationContext().getTheme()));
+            else
+                diagram.setImageDrawable(getResources().getDrawable(R.drawable.diagram_cylinder));
+        }
+
         frame_opts_flight = (LinearLayout) alert.findViewById(R.id.frame_opts_flight);
         frame_opts_layout = (LinearLayout) alert.findViewById(R.id.frame_opts_layout);
         frame_opts_skybox = (LinearLayout) alert.findViewById(R.id.frame_opts_skybox);
@@ -620,9 +641,6 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         seekerSkyBoxWidth = (SeekBar) alert.findViewById(R.id.seekerSkyBoxWidth);
         layout_diagram = (LinearLayout) alert.findViewById(R.id.layout_diagram);
         layout_width = (LinearLayout) alert.findViewById(R.id.layout_width);
-
-        final TextView skybox_height_txt = (TextView) alert.findViewById(R.id.skybox_height);
-        skybox_height_txt.setText(Integer.toString(skybox_height));
 
         seekerSkyBoxHeight.setMax(SKYBOX_HGHT_RISTRICTION - LAUNCH_HGHT - SKYBOX_MIN_HGHT);
         seekerSkyBoxHeight.setProgress(skybox_height - SKYBOX_MIN_HGHT);
@@ -642,23 +660,6 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
             public void onStopTrackingTouch(SeekBar seekBar) {
             }
         });
-
-        final TextView skybox_width_txt = (TextView) alert.findViewById(R.id.skybox_width);
-        final RadioButton radio_Cuboid = (RadioButton) alert.findViewById(R.id.radio_Cuboid);
-        final RadioButton radio_Cylinder = (RadioButton) alert.findViewById(R.id.radio_Cylinder);
-        final ImageView diagram = (ImageView) alert.findViewById(R.id.img_diagram);
-
-        if(skybox_cuboid) {
-            radio_Cuboid.setChecked(true);
-            skybox_width_txt.setText(Integer.toString(skybox_width));
-        } else{
-            radio_Cylinder.setChecked(true);
-            skybox_width_txt.setText(Integer.toString(skybox_width / 2));
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
-                diagram.setImageDrawable(getResources().getDrawable(R.drawable.diagram_cylinder, getApplicationContext().getTheme()));
-            else
-                diagram.setImageDrawable(getResources().getDrawable(R.drawable.diagram_cylinder));
-        }
 
         seekerSkyBoxWidth.setMax(SKYBOX_WIDTH_RISTRICTION - SKYBOX_MIN_WIDTH);
         seekerSkyBoxWidth.setProgress(skybox_width - SKYBOX_MIN_WIDTH);
@@ -734,11 +735,12 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         chkToggleArrows.setChecked(controls_arrows);
         chkToggleDesc.setChecked(controls_desc);
         chkEnableSkyBox.setChecked(skybox_enabled);
+        chkBox_ButtonDisablement.setChecked(skybox_ButtonDisablement);
 
         radiogroup_SkyBoxShape.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(RadioGroup group, int checkedId) {
-                switch (checkedId){
+                switch (checkedId) {
                     case R.id.radio_Cuboid:
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
                             diagram.setImageDrawable(getResources().getDrawable(R.drawable.diagram_cuboid, getApplicationContext().getTheme()));
@@ -760,6 +762,13 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
                         skybox_width_txt.setText(Integer.toString(skybox_width / 2));
                         break;
                 }
+            }
+        });
+
+        chkBox_ButtonDisablement.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                skybox_ButtonDisablement = isChecked;
             }
         });
 
