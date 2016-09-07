@@ -44,12 +44,15 @@ import com.o3dr.services.android.lib.drone.connection.ConnectionType;
 import com.o3dr.services.android.lib.drone.property.Altitude;
 import com.o3dr.services.android.lib.drone.property.Attitude;
 import com.o3dr.services.android.lib.drone.property.Gps;
+import com.o3dr.services.android.lib.drone.property.Home;
 import com.o3dr.services.android.lib.drone.property.State;
 import com.o3dr.services.android.lib.drone.property.Type;
 import com.o3dr.services.android.lib.drone.property.VehicleMode;
 import com.o3dr.services.android.lib.model.AbstractCommandListener;
 import com.o3dr.services.android.lib.model.SimpleCommandListener;
 import com.o3dr.services.android.lib.util.MathUtils;
+
+import java.text.AttributedCharacterIterator;
 
 public class MainActivity extends AppCompatActivity implements TowerListener, DroneListener, CompoundButton.OnCheckedChangeListener {
 
@@ -91,13 +94,14 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     EditText txtDirectionalDistance, txtRotationAngle, txtAltitudeDistance;
     RadioGroup radiogroup_SkyBoxShape;
     SeekBar seekerSkyBoxHeight, seekerSkyBoxWidth;
-    int skybox_height, skybox_width, SKYBOX_HGHT_RISTRICTION, SKYBOX_WIDTH_RISTRICTION, SKYBOX_MIN_WIDTH, SKYBOX_MIN_HGHT;
 
     //Controls Variables
     boolean stream_controls_visible, controls_directional, controls_rotation, controls_altitude, controls_arrows, controls_desc;
 
     //Other
-    boolean launch_procedure, landing, skybox_enabled, skybox_cuboid, skybox_ButtonDisablement;
+    boolean launch_procedure, landing, skybox_enabled, skybox_cuboid, skybox_changes, skybox_info; //skybox_ButtonDisablement
+    int skybox_height, skybox_width, SKYBOX_HGHT_RISTRICTION, SKYBOX_WIDTH_RISTRICTION, SKYBOX_MIN_WIDTH, SKYBOX_MIN_HGHT;
+    LatLong skybox_center;
 
 
     @Override
@@ -166,7 +170,9 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
                         frame_flight.setVisibility(RelativeLayout.INVISIBLE);
                         frame_launch.setVisibility(RelativeLayout.VISIBLE);
                         btnLaunch.setVisibility(Button.INVISIBLE);
+                        btnArm.setVisibility(Button.VISIBLE);
                         landing = false;
+                        launch_procedure = true;
                         force_Guided_mode();
                     }
                 } else {
@@ -213,9 +219,12 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         landing = false;
         skybox_enabled = false;
         skybox_cuboid = true;
-        skybox_ButtonDisablement = false;
+        //skybox_ButtonDisablement = false;
         skybox_height = 50;
         skybox_width = 150;
+        skybox_center = null;
+        skybox_changes = false;
+        skybox_info = false;
 
         initUI();
 
@@ -272,14 +281,18 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         Attitude droneAtt = this.drone.getAttribute(AttributeType.ATTITUDE);
         drone_yaw = droneAtt.getYaw();
 
-        if(launch_procedure) {
-            Altitude droneAlt = this.drone.getAttribute(AttributeType.ALTITUDE);
-            double alt = droneAlt.getAltitude();
+        Altitude droneAlt = this.drone.getAttribute(AttributeType.ALTITUDE);
+        double alt = droneAlt.getAltitude();
 
+        if(launch_procedure) {
             if ((alt > (LAUNCH_HGHT - 1))) {
                 frame_launch.setVisibility(FrameLayout.GONE);
                 frame_flight.setVisibility(FrameLayout.VISIBLE);
                 launch_procedure = false;
+            }
+        } else {
+            if(skybox_enabled){
+
             }
         }
     }
@@ -288,19 +301,19 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     //Flight Controls
     //=========================================================================
     public void onBtnDroneForward(View view){
-        moveDrone(0.0);
+        calculateMove(0.0);
     }
 
     public void onBtnDroneBackward(View view){
-        moveDrone(180.0);
+        calculateMove(180.0);
     }
 
     public void onBtnDroneLeft(View view){
-        moveDrone(270.0);
+        calculateMove(270.0);
     }
 
     public void onBtnDroneRight(View view){
-        moveDrone(90.0);
+        calculateMove(90.0);
     }
 
     public void onBtnDroneRotateRight(View view){
@@ -358,6 +371,21 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
     }
 
     public void onBtnDroneIncreaseAlt(View view){
+        Altitude alt = this.drone.getAttribute(AttributeType.ALTITUDE);
+
+        if(skybox_enabled){
+            if(!(alt.getAltitude() + MOVEMENT_ALT > (skybox_height + LAUNCH_HGHT)))
+                increase_alt();
+            /*else if(skybox_ButtonDisablement &&((alt.getAltitude() + (MOVEMENT_ALT * 2)) > skybox_height)) {
+                findViewById(R.id.arrow_alt_inc).setVisibility(ImageView.INVISIBLE);
+                findViewById(R.id.lbl_alt_inc).setVisibility(TextView.INVISIBLE);*/
+            else
+                makeToast("Skybox edge reached!");
+        } else
+            increase_alt();
+    }
+
+    private void increase_alt(){
         yaw_before_action = drone_yaw;
 
         Altitude alt = this.drone.getAttribute(AttributeType.ALTITUDE);
@@ -387,7 +415,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         ControlApi.getApi(this.drone).pauseAtCurrentLocation(new AbstractCommandListener() {
             @Override
             public void onSuccess() {
-
+                force_Guided_mode();
             }
 
             @Override
@@ -441,7 +469,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         });
     }
 
-    private void moveDrone(double bearing){
+    private void calculateMove(double bearing){
         force_Guided_mode();
         yaw_before_action = drone_yaw;
 
@@ -459,6 +487,18 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
 
         LatLong target = MathUtils.newCoordFromBearingAndDistance(current, target_bearing, MOVEMENT_YAW);
 
+        double distance = MathUtils.getDistance2D(skybox_center, target);
+
+        if(skybox_enabled){
+            if(!skybox_cuboid && distance < skybox_width)
+                moveDrone(target);
+            else
+                makeToast("Reached Skybox edge!");
+        } else
+            moveDrone(target);
+    }
+
+    private void moveDrone(LatLong target){
         ControlApi.getApi(this.drone).goTo(target, true, new AbstractCommandListener() {
             @Override
             public void onSuccess() {
@@ -558,6 +598,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         });
     }
 
+
     //Options menu
     //=========================================================================
     public void switchBackground(View v){
@@ -600,6 +641,10 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
                 MOVEMENT_DEG = Integer.parseInt(txtRotationAngle.getText().toString());
                 MOVEMENT_YAW = Integer.parseInt(txtDirectionalDistance.getText().toString());
                 //TODO: Add limitations-
+
+                check_alt_boundaries();
+                if(skybox_enabled)
+                    getSkyBoxCenter();
             }
         });
 
@@ -647,6 +692,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         seekerSkyBoxHeight.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                skybox_changes = true;
                 skybox_height = progress + SKYBOX_MIN_HGHT;
                 skybox_height_txt.setText(Integer.toString(skybox_height));
             }
@@ -666,6 +712,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         seekerSkyBoxWidth.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                skybox_changes = true;
                 skybox_width = progress + SKYBOX_MIN_WIDTH;
                 if(skybox_cuboid)
                     skybox_width_txt.setText(Integer.toString(skybox_width));
@@ -690,7 +737,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         final CheckBox chkToggleArrows = (CheckBox) alert.findViewById(R.id.chkToggleArrows);
         final CheckBox chkToggleDesc = (CheckBox) alert.findViewById(R.id.chkToggleDesc);
         final CheckBox chkEnableSkyBox = (CheckBox) alert.findViewById(R.id.chkBox_EnableSkyBox);
-        final CheckBox chkBox_ButtonDisablement = (CheckBox) alert.findViewById(R.id.chkBox_ButtonDisablement);
+        //final CheckBox chkBox_ButtonDisablement = (CheckBox) alert.findViewById(R.id.chkBox_ButtonDisablement);
 
         chkToggleStreamControls.setOnCheckedChangeListener(this);
         chkToggleDirectional.setOnCheckedChangeListener(this);
@@ -705,7 +752,11 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
                 skybox_enabled = isChecked;
                 if (isChecked) {
 
-                    SkyboxInfo();
+                    if(!skybox_info){
+                        SkyboxInfo();
+                        skybox_info = true;
+                    }
+
 
                     radiogroup_SkyBoxShape.setVisibility(RadioGroup.VISIBLE);
                     txtSkyBoxHeight.setVisibility(TextView.VISIBLE);
@@ -714,8 +765,12 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
                     seekerSkyBoxWidth.setVisibility(SeekBar.VISIBLE);
                     layout_diagram.setVisibility(SeekBar.VISIBLE);
                     layout_width.setVisibility(SeekBar.VISIBLE);
-                    chkBox_ButtonDisablement.setVisibility(CheckBox.VISIBLE);
+                    //chkBox_ButtonDisablement.setVisibility(CheckBox.VISIBLE);
                 } else {
+                    skybox_center = null;
+                    skybox_info = false;
+                    TextView test = (TextView) findViewById(R.id.txtTest);
+                    test.setText("null");
                     radiogroup_SkyBoxShape.setVisibility(RadioGroup.INVISIBLE);
                     txtSkyBoxHeight.setVisibility(TextView.INVISIBLE);
                     txtSkyBoxWidth.setVisibility(TextView.INVISIBLE);
@@ -723,7 +778,7 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
                     seekerSkyBoxWidth.setVisibility(SeekBar.INVISIBLE);
                     layout_diagram.setVisibility(SeekBar.INVISIBLE);
                     layout_width.setVisibility(SeekBar.INVISIBLE);
-                    chkBox_ButtonDisablement.setVisibility(CheckBox.INVISIBLE);
+                    //chkBox_ButtonDisablement.setVisibility(CheckBox.INVISIBLE);
                 }
             }
         });
@@ -735,11 +790,12 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         chkToggleArrows.setChecked(controls_arrows);
         chkToggleDesc.setChecked(controls_desc);
         chkEnableSkyBox.setChecked(skybox_enabled);
-        chkBox_ButtonDisablement.setChecked(skybox_ButtonDisablement);
+        //chkBox_ButtonDisablement.setChecked(skybox_ButtonDisablement);
 
         radiogroup_SkyBoxShape.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(RadioGroup group, int checkedId) {
+                skybox_changes = true;
                 switch (checkedId) {
                     case R.id.radio_Cuboid:
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
@@ -765,12 +821,12 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
             }
         });
 
-        chkBox_ButtonDisablement.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+        /*chkBox_ButtonDisablement.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 skybox_ButtonDisablement = isChecked;
             }
-        });
+        });*/
 
         txtDirectionalDistance = (EditText) alert.findViewById(R.id.txtDirectionalDistance);
         txtRotationAngle = (EditText) alert.findViewById(R.id.txtRotationAngle);
@@ -779,6 +835,47 @@ public class MainActivity extends AppCompatActivity implements TowerListener, Dr
         txtDirectionalDistance.setText(Integer.toString(MOVEMENT_YAW));
         txtRotationAngle.setText(Integer.toString(MOVEMENT_DEG));
         txtAltitudeDistance.setText(Integer.toString(MOVEMENT_ALT));
+    }
+
+    private void check_alt_boundaries(){
+        //ToDO check boundaries
+
+        Altitude alt = this.drone.getAttribute(AttributeType.ALTITUDE);
+        if(skybox_enabled && alt.getAltitude() > skybox_height + LAUNCH_HGHT) {
+            ControlApi.getApi(this.drone).climbTo(skybox_height + LAUNCH_HGHT);
+            check_yaw();
+        }
+    }
+
+    private void getSkyBoxCenter(){
+        if(skybox_changes){
+            final Gps gps = this.drone.getAttribute(AttributeType.GPS);
+            final TextView txtTest = (TextView) findViewById(R.id.txtTest);
+
+            if(skybox_center != null){
+                if(gps.getPosition() != skybox_center){
+                    final AlertDialog.Builder skyboxDialog = new AlertDialog.Builder(this);
+                    skyboxDialog.setTitle("Skybox Location");
+                    skyboxDialog.setMessage("Skybox parameters have changed. Do you want to keep it in the same location" +
+                            " or move the center to the current location of the drone?");
+                    skyboxDialog.setPositiveButton("Update", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            skybox_center = gps.getPosition();
+                            txtTest.setText("Lat:" + skybox_center.getLatitude() + "  Long:" + skybox_center.getLongitude());
+                        }
+                    });
+                    skyboxDialog.setNegativeButton("Keep", null);
+
+                    final AlertDialog alert = skyboxDialog.create();
+                    alert.show();
+                }
+            } else {
+                skybox_center = gps.getPosition();
+                txtTest.setText("Lat:" + skybox_center.getLatitude() + "  Long:" + skybox_center.getLongitude());
+            }
+            skybox_changes = false;
+        }
     }
 
 
